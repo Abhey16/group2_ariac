@@ -10,6 +10,24 @@ find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclpy REQUIRED)
+find_package(ariac_msgs REQUIRED)
+
+
+#--------
+# C++
+#--------
+include_directories(include)
+
+add_executable(retrieve_orders src/retrieve_orders.cpp)
+ament_target_dependencies(retrieve_orders 
+                          rclcpp 
+                          ariac_msgs)
+
+install(TARGETS
+        retrieve_orders
+        DESTINATION lib/${PROJECT_NAME}
+        )
+
 
 #--------
 # Python

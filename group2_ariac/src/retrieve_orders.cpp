@@ -5,12 +5,12 @@ void RetrieveOrders::order_callback(const ariac_msgs::msg::Order::SharedPtr msg)
 
     // Get Order Attributes
 
-    // Create parts object
+    // Create KittingPart object
     std::vector<KittingPart> kitting_part;
-    for(const auto& part_msg : msg->kitting_task.parts)
+    for (const auto &part_msg : msg->kitting_task.parts)
     {
-        kitting_part.push_back(KittingPart(Part(part_msg.part.color,part_msg.part.type),
-                                    part_msg.quadrant));
+        kitting_part.push_back(KittingPart(Part(part_msg.part.color, part_msg.part.type),
+                                           part_msg.quadrant));
     }
 
     // Create KittingTask object
@@ -19,50 +19,82 @@ void RetrieveOrders::order_callback(const ariac_msgs::msg::Order::SharedPtr msg)
                         msg->kitting_task.destination,
                         kitting_part);
 
+    // Create AssemblyPart Object
+    std::vector<AssemblyPart> assembly_part;
+    for (const auto &part_msg : msg->assembly_task.parts)
+    {
+        assembly_part.push_back(AssemblyPart(Part(part_msg.part.color, part_msg.part.type),
+                                             part_msg.assembled_pose,
+                                             part_msg.install_direction));
+    }
+
+    // Create AssemblyTask object
+    AssemblyTask assembly(msg->assembly_task.agv_numbers,
+                          msg->assembly_task.station,
+                          assembly_part);
+
+    // Create CombinedPart object
+    std::vector<AssemblyPart> combined_part;
+    for (const auto &part_msg : msg->combined_task.parts)
+    {
+        combined_part.push_back(AssemblyPart(Part(part_msg.part.color, part_msg.part.type),
+                                             part_msg.assembled_pose,
+                                             part_msg.install_direction));
+    }
+    // Create CombinedTask object
+    CombinedTask combined(msg->combined_task.station,
+                          combined_part);
+
     // Create Order object
-    Order order(msg->id, 
-                msg->type,msg->priority,
-                kitting);
+    Order order(msg->id,
+                msg->type, msg->priority,
+                kitting,
+                assembly,
+                combined);
 
     // Storing orders in a queue
     // orders.push(order);
     if (msg->priority == true)
     {
         priority_orders.push(order);
-        RCLCPP_INFO(this->get_logger(),"priority order");
+        // RCLCPP_INFO(this->get_logger(), "priority order");
     }
     else
     {
         normal_orders.push(order);
-        RCLCPP_INFO(this->get_logger(),"normal order");
+        // RCLCPP_INFO(this->get_logger(), "normal order");
     }
-    
+
+    RetrieveOrders::display_order(order);
+}
+
+void RetrieveOrders::display_order(const Order &order)
+{
     // Display order on the terminal
-    RCLCPP_INFO(this->get_logger(),"*****************************");
+    RCLCPP_INFO(this->get_logger(), "*****************************");
 
-    RCLCPP_INFO(this->get_logger(),"- Kitting Task : %s",order.get_id().c_str());
+    RCLCPP_INFO(this->get_logger(), "- Kitting Task : %s", order.get_id().c_str());
 
-    RCLCPP_INFO(this->get_logger(),"    - Priority : %d", order.get_priority());
+    RCLCPP_INFO(this->get_logger(), "    - Priority : %d", order.get_priority());
 
-    RCLCPP_INFO(this->get_logger(),"    - Tray : %d",order.get_kitting_task().get_tray_id());
-    
-    for (const auto& part : order.get_kitting_task().get_parts()) {
+    RCLCPP_INFO(this->get_logger(), "    - Tray : %d", order.get_kitting_task().get_tray_id());
+
+    for (const auto &part : order.get_kitting_task().get_parts())
+    {
         RCLCPP_INFO(this->get_logger(), "       - Q%d: %d %d",
-            part.get_quadrant(),
-            part.get_part().get_color(), 
-            part.get_part().get_type()
-        );
+                    part.get_quadrant(),
+                    part.get_part().get_color(),
+                    part.get_part().get_type());
     }
 
-    RCLCPP_INFO(this->get_logger(),"    - AGV : %d", order.get_kitting_task().get_agv_number());
+    RCLCPP_INFO(this->get_logger(), "    - AGV : %d", order.get_kitting_task().get_agv_number());
 
-    RCLCPP_INFO(this->get_logger(),"*****************************");
-    
+    RCLCPP_INFO(this->get_logger(), "*****************************");
 }
 
 int main(int argc, char **argv)
 {
-    rclcpp::init(argc,argv);
+    rclcpp::init(argc, argv);
     auto node = std::make_shared<RetrieveOrders>("retrieve_orders");
 
     rclcpp::spin(node);

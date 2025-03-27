@@ -140,6 +140,7 @@ class RetrieveOrders : public rclcpp::Node
         rclcpp::Subscription<ariac_msgs::msg::Order>::SharedPtr subscriber_;
 
         // Storing Orders in a queue
-        std::queue<Order> orders;
+        std::queue<Order> normal_orders;
 
+        std::queue<Order> priority_orders;
 };

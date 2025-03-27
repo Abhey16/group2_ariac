@@ -25,7 +25,17 @@ void RetrieveOrders::order_callback(const ariac_msgs::msg::Order::SharedPtr msg)
                 kitting);
 
     // Storing orders in a queue
-    orders.push(order);
+    // orders.push(order);
+    if (msg->priority == true)
+    {
+        priority_orders.push(order);
+        RCLCPP_INFO(this->get_logger(),"priority order");
+    }
+    else
+    {
+        normal_orders.push(order);
+        RCLCPP_INFO(this->get_logger(),"normal order");
+    }
     
     // Display order on the terminal
     RCLCPP_INFO(this->get_logger(),"*****************************");

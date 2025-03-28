@@ -72,7 +72,6 @@ void RetrieveOrders::display_order(const Order &order)
 {
     // Display order on the terminal
     RCLCPP_INFO(this->get_logger(), "*****************************");
-
     RCLCPP_INFO(this->get_logger(), "- Kitting Task : %s", order.get_id().c_str());
 
     RCLCPP_INFO(this->get_logger(), "    - Priority : %d", order.get_priority());
@@ -81,10 +80,10 @@ void RetrieveOrders::display_order(const Order &order)
 
     for (const auto &part : order.get_kitting_task().get_parts())
     {
-        RCLCPP_INFO(this->get_logger(), "       - Q%d: %d %d",
-                    part.get_quadrant(),
-                    part.get_part().get_color(),
-                    part.get_part().get_type());
+        RCLCPP_INFO(this->get_logger(), "       - %s: %s %s",
+                    part.get_quadrant().c_str(),
+                    part.get_part().get_color().c_str(),
+                    part.get_part().get_type().c_str());
     }
 
     RCLCPP_INFO(this->get_logger(), "    - AGV : %d", order.get_kitting_task().get_agv_number());

@@ -10,6 +10,39 @@ find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclpy REQUIRED)
+find_package(std_srvs REQUIRED)
+find_package(ariac_msgs REQUIRED)
+
+# Nodes
+include_directories(include include/group2_ariac)
+
+add_executable(start_competition_node src/start_competition_node.cpp)
+ament_target_dependencies(start_competition_node rclcpp std_srvs ariac_msgs)
+
+add_executable(order_processing_node src/order_processing_node.cpp)
+ament_target_dependencies(order_processing_node rclcpp ariac_msgs)
+
+add_executable(retrieve_orders src/retrieve_orders.cpp)
+ament_target_dependencies(retrieve_orders rclcpp ariac_msgs)
+
+add_executable(ship_orders src/ship_orders.cpp)
+ament_target_dependencies(ship_orders rclcpp ariac_msgs std_srvs)
+
+add_executable(complete_orders src/complete_orders.cpp)
+ament_target_dependencies(complete_orders rclcpp ariac_msgs std_srvs)
+
+add_executable(end_competition_node src/end_competition_node.cpp)
+ament_target_dependencies(end_competition_node rclcpp std_srvs ariac_msgs)
+
+install(TARGETS
+        start_competition_node
+        order_processing_node
+        retrieve_orders
+        ship_orders
+        complete_orders
+        end_competition_node
+        DESTINATION lib/${PROJECT_NAME}
+        )
 
 #--------
 # Python

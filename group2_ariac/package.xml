@@ -5,13 +5,16 @@
   <version>0.0.0</version>
   <description>TODO: Package description</description>
   <maintainer email="abhey2526@gmail.com">abhey</maintainer>
+  <maintainer email="w_apple19910215@icloud.com">wei-li</maintainer>  
+  <maintainer email="reyroque@umd.edu">rey</maintainer>
   <license>TODO: License declaration</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
   <depend>rclpy</depend>
-
+  <depend>ariac_msgs</depend>
+  <depend>std_srvs</depend>
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
 

@@ -1,59 +1,123 @@
 #include "ship_orders.hpp"
 
- bool ShipOrders::lock_agv_tray(int agv_num) {
+void ShipOrders::order_callback(const ariac_msgs::msg::Order::SharedPtr msg)
+{
+    RCLCPP_INFO(this->get_logger(), "Received Order ID: %s | Priority: %s | AGV: %d",
+                msg->id.c_str(),
+                msg->priority ? "HIGH" : "NORMAL",
+                msg->kitting_task.agv_number);
+
+    orders_.push_back(*msg);
+
+    if (!first_order_received_) {
+        first_order_received_ = true;
+
+        process_timer_ = this->create_wall_timer(
+            std::chrono::seconds(40),
+            std::bind(&ShipOrders::process_orders, this));
+    }
+}
+
+void ShipOrders::process_orders()
+{
+    process_timer_->cancel();
+
+    if (orders_.empty()) {
+        RCLCPP_WARN(this->get_logger(), "Timer expired but no orders were received.");
+        return;
+    }
+
+    std::sort(orders_.begin(), orders_.end(),
+        [](const ariac_msgs::msg::Order &a, const ariac_msgs::msg::Order &b) {
+            return a.priority > b.priority;
+        });
+
+    current_order_index_ = 0;
+    process_next_order();
+}
+
+void ShipOrders::process_next_order()
+{
+    if (current_order_index_ >= orders_.size()) {
+        RCLCPP_INFO(this->get_logger(), "Orders processed.");
+        return;
+    }
+
+    const auto &order = orders_[current_order_index_];
+    int agv_num = order.kitting_task.agv_number;
+    int destination = order.kitting_task.destination;
+
+    RCLCPP_INFO(this->get_logger(), "Shipping Order '%s' on AGV%d",
+                order.id.c_str(), agv_num);
+
+    lock_tray(agv_num, destination);
+}
+
+void ShipOrders::lock_tray(int agv_num, int destination)
+{
+    if (tray_clients_.find(agv_num) == tray_clients_.end()) {
         std::string service_name = "/ariac/agv" + std::to_string(agv_num) + "_lock_tray";
-        auto client = this->create_client<std_srvs::srv::Trigger>(service_name);
+        tray_clients_[agv_num] = this->create_client<std_srvs::srv::Trigger>(service_name);
+    }
+    auto tray_client = tray_clients_[agv_num];
 
-        if (!client->wait_for_service(std::chrono::seconds(5))) {
-            RCLCPP_ERROR(this->get_logger(), "Service %s not available", service_name.c_str());
-            return false;
-        }
-
-        auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
-        auto future = client->async_send_request(request);
-
-        if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), future)
-            == rclcpp::FutureReturnCode::SUCCESS && future.get()->success) {
-            RCLCPP_INFO(this->get_logger(), "Locked tray on AGV%d", agv_num);
-            return true;
-        } else {
-            RCLCPP_WARN(this->get_logger(), "Failed to lock tray on AGV%d", agv_num);
-            return false;
-        }
+    if (!tray_client->wait_for_service(std::chrono::seconds(3))) {
+        RCLCPP_ERROR(this->get_logger(), "Service /ariac/agv%d_lock_tray timed out", agv_num);
+        return;
     }
 
-    bool ShipOrders::move_agv(int agv_num, int destination) {
-        std::string service_name = "/ariac/move_agv" + std::to_string(agv_num);
-        auto client = this->create_client<ariac_msgs::srv::MoveAGV>(service_name);
-
-        if (!client->wait_for_service(std::chrono::seconds(5))) {
-            RCLCPP_ERROR(this->get_logger(), "Service %s not available", service_name.c_str());
-            return false;
-        }
-        auto request = std::make_shared<ariac_msgs::srv::MoveAGV::Request>();
-        request->location = destination;
-
-        auto future = client->async_send_request(request);
-        rclcpp::spin_until_future_complete(this->get_node_base_interface(), future);
-
-        int timeout = 22;
-        auto start_time = std::chrono::steady_clock::now();
-
-        while (std::chrono::steady_clock::now() - start_time < std::chrono::seconds(timeout)) {
-            if (agv_locations_[agv_num] == destination) {
-                RCLCPP_INFO(this->get_logger(), "Moved AGV%d to destination %d", agv_num, destination);
-                return true;
+    auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
+    tray_client->async_send_request(request,
+        [this, agv_num, destination](rclcpp::Client<std_srvs::srv::Trigger>::SharedFuture future) {
+            if (future.get()->success) {
+                RCLCPP_INFO(this->get_logger(), "Locked tray on AGV%d", agv_num);
+                // Add a short delay to ensure plugin finishes locking
+                rclcpp::sleep_for(std::chrono::milliseconds(500));
+                this->move_agv(agv_num, destination);
+            } else {
+                RCLCPP_WARN(this->get_logger(), "Failed to lock tray on AGV%d", agv_num);
+                current_order_index_++;
+                this->process_next_order();
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        }
+        });
+}
 
-        RCLCPP_WARN(this->get_logger(), "Timeout: AGV%d did not reach destination %d", agv_num, destination);
-        return false;
+void ShipOrders::move_agv(int agv_num, int destination)
+{
+    if (move_clients_.find(agv_num) == move_clients_.end()) {
+        std::string service_name = "/ariac/move_agv" + std::to_string(agv_num);
+        move_clients_[agv_num] = this->create_client<ariac_msgs::srv::MoveAGV>(service_name);
+    }
+    auto client = move_clients_[agv_num];
+
+    if (!client->wait_for_service(std::chrono::seconds(3))) {
+        RCLCPP_ERROR(this->get_logger(), "Service /ariac/move_agv%d timed out", agv_num);
+        return;
     }
 
-int main(int argc, char **argv) {
+    auto request = std::make_shared<ariac_msgs::srv::MoveAGV::Request>();
+    request->location = destination;
+
+    client->async_send_request(request,
+        [this, agv_num, destination](rclcpp::Client<ariac_msgs::srv::MoveAGV>::SharedFuture future) {
+            if (future.get()->success) {
+                RCLCPP_INFO(this->get_logger(), "Moved AGV%d to destination %d", agv_num, destination);
+            } else {
+                RCLCPP_WARN(this->get_logger(), "Move AGV%d to destination failed %d", agv_num, destination);
+            }
+            current_order_index_++;
+            this->process_next_order();
+        });
+}
+
+int main(int argc, char **argv)
+{
     rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<ShipOrders>());
+    auto node = std::make_shared<ShipOrders>();
+    rclcpp::executors::MultiThreadedExecutor executor;
+    executor.add_node(node);
+    executor.spin();
+
     rclcpp::shutdown();
     return 0;
 }

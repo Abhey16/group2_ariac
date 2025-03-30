@@ -12,6 +12,7 @@ find_package(rclcpp REQUIRED)
 find_package(rclpy REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(ariac_msgs REQUIRED)
+
 # Nodes
 include_directories(include include/group2_ariac)
 
@@ -42,8 +43,6 @@ install(TARGETS
         end_competition_node
         DESTINATION lib/${PROJECT_NAME}
         )
-
-
 
 #--------
 # Python

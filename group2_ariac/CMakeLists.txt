@@ -16,6 +16,12 @@ find_package(ariac_msgs REQUIRED)
 # Nodes
 include_directories(include include/group2_ariac)
 
+add_executable(start_competition_node src/start_competition_node.cpp)
+ament_target_dependencies(start_competition_node rclcpp std_srvs ariac_msgs)
+
+add_executable(order_processing_node src/order_processing_node.cpp)
+ament_target_dependencies(order_processing_node rclcpp ariac_msgs)
+
 add_executable(ship_orders src/ship_orders.cpp)
 ament_target_dependencies(ship_orders rclcpp ariac_msgs std_srvs)
 
@@ -23,6 +29,8 @@ add_executable(complete_orders src/complete_orders.cpp)
 ament_target_dependencies(complete_orders rclcpp ariac_msgs std_srvs)
 
 install(TARGETS
+        start_competition_node
+        order_processing_node
         ship_orders
         complete_orders
         DESTINATION lib/${PROJECT_NAME}

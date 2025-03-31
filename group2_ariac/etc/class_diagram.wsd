@@ -1,0 +1,61 @@
+@startuml group2_ariac
+title Group2_Ariac Class Diagram
+
+' Referenced from orders_struct
+class Order <<struct>> {
+    + order_id : std::string
+    + parts_list : std::vector<std::shared_ptr<Part>>
+    + status : bool       
+    + priority : bool
+    + agv_number : int
+    + tray : std::shared_ptr<Tray>
+    + destination : uint8    
+    + verify_part() <<const>> : bool
+}
+
+class Part {
+    - type_ : std::string
+    - location_ : std::string
+    - status_ : bool
+    + get_status() <<const>> : bool
+    + get_type() <<const>> : std::string
+    + get_location() <<const>> : std::string
+}
+
+class Tray {
+    - tray_id_ : std::string
+    - assigned_order_ : std::shared_ptr<Order>
+    + get_tray_id() <<const>> : std::string
+    + get_assigned_order <<const>> : std::shared_ptr<Order>
+
+}
+
+class AGV {
+    - agv_id_ : std::string
+    - current_location_ : std::string
+    - loaded_tray_ : std::shared_ptr<Tray>
+    - status : std::shared_ptr<ariac_msgs::msg::AGVStatus>
+    + get_status() <<const>> : std::shared_ptr<ariac_msgs::msg::AGVStatus>
+    + get_tray() <<const>> : std::shared_ptr<Tray>
+    + transport_tray() <<const>> : void
+}
+
+class Robot {
+    - robot_id_ : std::string
+    - tool_type_ : std::string
+    + get_robot_id() <<const>> : std::string
+    + pick_part() <<const>> : void
+    + move()  <<const>> : void
+    + place_part() <<const>> : void
+}
+
+
+' Relationships
+Robot "1" --> "1..*" Part
+AGV "1" --> "0..1" Tray
+Order "1" --> "1..4*" Part
+Order "1" <---> "1" Tray
+Tray "1" --> "1..4*" Part
+
+
+@enduml

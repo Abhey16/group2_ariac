@@ -1,6 +1,6 @@
 /**
  * @file ship_orders.hpp
- * @author Rey Roque-Perez (reyroque@umd.com)
+ * @author Wei-Li, Chen (wc2023@umd.com)
  * @brief Class definition for the Ship Orders class
  * @version 0.1
  * @date 2025-03-30
@@ -19,7 +19,8 @@
 using std::placeholders::_1;
 
 /**
- * @brief Class that ends the competition once all orders are completed
+ * @class EndCompetitionNode
+ * @brief ends the competition once all orders are completed
  */
 class EndCompetitionNode : public rclcpp::Node {
 public:
@@ -28,29 +29,21 @@ public:
      */
     EndCompetitionNode() : Node("end_competition_node") {
         
-        /**
-         * @brief end competition client
-         */
+        // end competition client
         end_competition_client_ = this->create_client<std_srvs::srv::Trigger>("/ariac/end_competition");
 
-        /**
-         * @brief subsribe competition state
-         */
+        // subsribe competition state
         state_sub_ = this->create_subscription<ariac_msgs::msg::CompetitionState>(
             "/ariac/competition_state", 10,
             std::bind(&EndCompetitionNode::state_callback, this, _1));
         
-        /**
-         * @brief subscribe orders completed flag
-         */
+        // subscribe orders completed flag
         orders_completed_sub_ = this->create_subscription<std_msgs::msg::Bool>(
             "/ariac/orders_completed", 10, [this](const std_msgs::msg::Bool::SharedPtr msg) {
                 orders_completed_ = msg->data;
             });
         
-        /**
-         * @brief log message
-         */
+        // log message
         RCLCPP_INFO(this->get_logger(), "End Competition Node Initialized");
     }
 

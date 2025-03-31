@@ -44,6 +44,11 @@ void CompleteOrders::submit_order(const std::string &order_id)
             if (future.get()->success) // Order submitted succesfully 
             {
                 RCLCPP_INFO(this->get_logger(), "Submitted order: %s", order_id.c_str());
+                if (orders_.empty()) {
+                    std_msgs::msg::Bool completed_msg;
+                    completed_msg.data = true;
+                    orders_completed_pub_->publish(completed_msg);
+                }
             } else  // Order failed to submit 
             {
                 RCLCPP_WARN(this->get_logger(), "Failed to submit order: %s", order_id.c_str());

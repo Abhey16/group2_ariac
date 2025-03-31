@@ -17,6 +17,7 @@
 #include <ariac_msgs/msg/agv_status.hpp>
 #include <ariac_msgs/srv/submit_order.hpp>
 
+#include <std_msgs/msg/bool.hpp>
 #include <unordered_map>
 #include <string>
 
@@ -47,6 +48,9 @@ public:
 
         // Client for submitting orders
         submit_client_ = this->create_client<ariac_msgs::srv::SubmitOrder>("/ariac/submit_order");
+
+        // Publisher for orders completed flag
+        orders_completed_pub_ = this->create_publisher<std_msgs::msg::Bool>("/ariac/orders_completed", 10);
 
         RCLCPP_INFO(this->get_logger(), "Complete Orders Node Initialized");
     }
@@ -92,4 +96,9 @@ private:
      * @brief Map to store orders and their corresponding AGV
      */
     std::unordered_map<int, ariac_msgs::msg::Order> orders_;
+
+       /**
+     * @brief Publisher for orders completed flag
+     */    
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr orders_completed_pub_; 
 };

@@ -3,6 +3,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "std_srvs/srv/trigger.hpp"
 #include "ariac_msgs/msg/competition_state.hpp"
+#include <std_msgs/msg/bool.hpp>
 
 using std::placeholders::_1;
 
@@ -17,12 +18,20 @@ public:
             "/ariac/competition_state", 10,
             std::bind(&EndCompetitionNode::state_callback, this, _1));
 
+        orders_completed_sub_ = this->create_subscription<std_msgs::msg::Bool>(
+            "/ariac/orders_completed", 10, [this](const std_msgs::msg::Bool::SharedPtr msg) {
+                orders_completed_ = msg->data;
+            });
+
         RCLCPP_INFO(this->get_logger(), "End Competition Node Initialized");
     }
 
 private:
     rclcpp::Subscription<ariac_msgs::msg::CompetitionState>::SharedPtr state_sub_;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr orders_completed_sub_;    
     rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr end_competition_client_;
+
+    bool orders_completed_ = false;
     bool ended_ = false;
 
     void state_callback(const ariac_msgs::msg::CompetitionState::SharedPtr msg);

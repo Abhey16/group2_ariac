@@ -1,10 +1,11 @@
 #include "end_competition_node.hpp"
+
 void EndCompetitionNode::state_callback(const ariac_msgs::msg::CompetitionState::SharedPtr msg)
 {
     if (ended_)
         return;
 
-    if (msg->competition_state == ariac_msgs::msg::CompetitionState::ORDER_ANNOUNCEMENTS_DONE)
+    if (msg->competition_state == ariac_msgs::msg::CompetitionState::ORDER_ANNOUNCEMENTS_DONE  && orders_completed_)
     {
         RCLCPP_INFO(this->get_logger(), "Competition state is ORDER_ANNOUNCEMENTS_DONE. Ending competition...");
 

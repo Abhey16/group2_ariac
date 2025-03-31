@@ -1,7 +1,7 @@
 /**
- * @file ship_orders.hpp
+ * @file end_competition_node.hpp
  * @author Wei-Li, Chen (wc2023@umd.com)
- * @brief Class definition for the Ship Orders class
+ * @brief Class definition for the EndCompetitionNode class
  * @version 0.1
  * @date 2025-03-30
  *

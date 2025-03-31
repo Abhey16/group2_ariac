@@ -1,12 +1,15 @@
 #include "retrieve_orders.hpp"
 
+// Callback function to process incoming order messages
 void RetrieveOrders::order_callback(const ariac_msgs::msg::Order::SharedPtr msg)
 {
 
     // Get Order Attributes
 
-    // Create KittingPart object
+    // Create a vector to store kitting parts
     std::vector<KittingPart> kitting_part;
+
+    // Loop through all parts in the kitting task and create KittingPart objects
     for (const auto &part_msg : msg->kitting_task.parts)
     {
         kitting_part.push_back(KittingPart(Part(part_msg.part.color, part_msg.part.type),
@@ -53,18 +56,17 @@ void RetrieveOrders::order_callback(const ariac_msgs::msg::Order::SharedPtr msg)
                 combined);
 
     // Storing orders in a queue
-    // orders.push(order);
     if (msg->priority == true)
     {
-        priority_orders.push(order);
-        // RCLCPP_INFO(this->get_logger(), "priority order");
+        priority_orders.push(order); // If it's a priority order, push it to the priority queue
     }
     else
     {
-        normal_orders.push(order);
-        // RCLCPP_INFO(this->get_logger(), "normal order");
+        normal_orders.push(order); // If it's a normal order, push it to the normal queue
+
     }
 
+    // Display the order details
     RetrieveOrders::display_order(order);
 }
 
@@ -91,12 +93,18 @@ void RetrieveOrders::display_order(const Order &order)
     RCLCPP_INFO(this->get_logger(), "*****************************");
 }
 
+// Main function to initialize ROS node and start spinning
 int main(int argc, char **argv)
 {
-    rclcpp::init(argc, argv);
+    rclcpp::init(argc, argv); // Initialize ROS with command-line arguments
+
+    // Create a RetrieveOrders node instance
     auto node = std::make_shared<RetrieveOrders>("retrieve_orders");
 
+    // Start spinning the node to handle callbacks and events
     rclcpp::spin(node);
+    
+    // Shutdown ROS when done
     rclcpp::shutdown();
 
     return 0;

@@ -1,3 +1,8 @@
+/**
+ * @file retrieve_orders.hpp
+ * @brief Defines classes for managing parts, kitting, assembly, and order retrieval in an ROS 2 environment.
+ */
+
 #pragma once
 
 #include "rclcpp/rclcpp.hpp"
@@ -8,21 +13,35 @@
 #include "ariac_msgs/msg/order.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/vector3.hpp"
-
+ 
+ /**
+  * @class Part
+  * @brief Represents a part with a specific color and type.
+  */
 class Part
 {
 public:
-    // Default Constructor
+     /**
+      * @brief Default constructor.
+      */
     Part() = default;
 
-    // Constructor
+     /**
+      * @brief Parameterized constructor.
+      * @param input_color The color of the part.
+      * @param input_type The type of the part.
+      */
     Part(uint8_t input_color, uint8_t input_type)
     {
         color = set_color(input_color);
         type = set_type(input_type);
     }
 
-    // set color
+     /**
+      * @brief Sets the color of the part.
+      * @param input_color The color code.
+      * @return The color as a string.
+      */
     std::string set_color(uint8_t input_color)
     {
         switch (input_color)
@@ -42,7 +61,11 @@ public:
         }
     }
 
-    // set Part Type
+     /**
+      * @brief Sets the type of the part.
+      * @param input_type The type code.
+      * @return The type as a string.
+      */
     std::string set_type(uint8_t input_type)
     {
         switch (input_type)
@@ -60,30 +83,51 @@ public:
         }
     }
 
-    // getter function
+     /**
+      * @brief Gets the color of the part.
+      * @return The color as a string.
+      */
     std::string get_color() const { return color; }
+
+    /**
+     * @brief Gets the type of the part.
+     * @return The type as a string.
+     */
     std::string get_type() const { return type; }
 
 private:
-    std::string color{};
-    std::string type{};
+    std::string color{}; ///< The color of the part.
+    std::string type{}; ///< The type of the part.
 };
 
-// kitting Part -> Part
+ /**
+  * @class KittingPart
+  * @brief Represents a kitting part, which consists of a part and a quadrant.
+  */
 class KittingPart
 {
 public:
-    // Default Constructor
+    /**
+     * @brief Default constructor.
+     */
     KittingPart() = default;
 
-    // Constructor
+    /**
+     * @brief Parameterized constructor.
+     * @param input_part Part object
+     * @param input_quadrant The quadrant
+     */
     KittingPart(const Part &input_part, uint8_t input_quadrant)
     {
         part = input_part;
         quadrant = set_quadrant(input_quadrant);
     }
 
-    // set quadrant
+    /**
+     * @brief Sets the quadrant of the part.
+     * @param input_quadrant.
+     * @return The quadrant as a string.
+     */
     std::string set_quadrant(uint8_t input_quadrant)
     {
         switch (input_quadrant)
@@ -101,21 +145,40 @@ public:
         }
     }
 
-    // getter function
+    /**
+     * @brief Gets the Part object.
+     * @return Part object
+     */
     const Part &get_part() const { return part; }
+    /**
+     * @brief Gets the quadrant of the part.
+     * @return The quadrant of part as a string.
+     */   
     std::string get_quadrant() const { return quadrant; }
 
 private:
-    Part part;
-    std::string quadrant;
+    Part part; ///< The part associated with kitting.
+    std::string quadrant; ///< The quadrant in which the part is placed.
 };
 
-// Assembly Part
+ /**
+  * @class AssemblyPart
+  * @brief Represents an assembly part, which consists of a part, assembled pose, and installation directions.
+  */
 class AssemblyPart
 {
 public:
+    /**
+     * @brief Default constructor.
+     */
     AssemblyPart() = default;
 
+    /**
+     * @brief Parameterized constructor.
+     * @param input_part Part object
+     * @param input_assembled_pose The assembly pose
+     * @param input_install_directions The installatin directions
+     */
     AssemblyPart(Part input_part,
                  geometry_msgs::msg::PoseStamped input_assembled_pose,
                  geometry_msgs::msg::Vector3 input_install_directions)
@@ -124,25 +187,45 @@ public:
         assembled_pose = input_assembled_pose;
         install_directions = input_install_directions;
     }
-
+    /**
+     * @brief Gets the Part object.
+     * @return Part object
+     */
     const Part &get_part() const { return part; }
+    /**
+     * @brief Gets the Pose of the part
+     * @return Pose of the part
+     */
     geometry_msgs::msg::PoseStamped get_assembled_pose() const { return assembled_pose; }
+    /**
+     * @brief Gets the installation directions
+     * @return installation direction
+     */
     geometry_msgs::msg::Vector3 get_install_directions() const { return install_directions; }
 
 private:
-    Part part;
-    geometry_msgs::msg::PoseStamped assembled_pose;
-    geometry_msgs::msg::Vector3 install_directions;
+    Part part; ///< The part to be assembled.
+    geometry_msgs::msg::PoseStamped assembled_pose; ///< The pose where the part is assembled.
+    geometry_msgs::msg::Vector3 install_directions; ///< The installation direction.
 };
 
-// kitting class
+/**
+ * @class KittingTask
+ * @brief Represents a kitting task.
+ */
 class KittingTask
 {
 public:
-    // Default Constructor
+    /** @brief Default constructor. */
     KittingTask() = default;
 
-    // Constructor
+    /**
+     * @brief Constructor to initialize a kitting task.
+     * @param input_agv_number The AGV number assigned to the task.
+     * @param input_tray_id The tray ID used in the task.
+     * @param input_destination The destination of the kitting task.
+     * @param input_parts List of parts involved in the task.
+     */
     KittingTask(uint8_t input_agv_number,
                 int8_t input_tray_id,
                 uint8_t input_destination,
@@ -154,7 +237,11 @@ public:
         parts = input_parts;
     }
 
-    // set destination
+    /**
+     * @brief Sets the destination of the kitting task.
+     * @param input_destination The destination identifier.
+     * @return The destination as a string.
+     */
     std::string set_destination(uint8_t input_destination)
     {
         switch (input_destination)
@@ -172,10 +259,13 @@ public:
         }
     }
 
-    // getter function
+    /** @brief Gets the AGV number assigned to the task. */
     u_int8_t get_agv_number() const { return agv_number; }
+    /** @brief Gets the tray ID used in the task. */
     int8_t get_tray_id() const { return tray_id; }
+    /** @brief Gets the destination of the kitting task. */
     std::string get_destination() const { return destination; }
+    /** @brief Gets the list of parts involved in the task. */
     const std::vector<KittingPart> &get_parts() const { return parts; }
 
 private:
@@ -185,12 +275,21 @@ private:
     std::vector<KittingPart> parts;
 };
 
-// assembly class -> Task Class
+/**
+ * @class AssemblyTask
+ * @brief Represents an assembly task.
+ */
 class AssemblyTask
 {
 public:
+    /** @brief Default constructor. */
     AssemblyTask() = default;
-
+    /**
+     * @brief Constructor to initialize an assembly task.
+     * @param input_agv_numbers List of AGV numbers assigned to the task.
+     * @param input_station The assembly station.
+     * @param input_parts List of parts involved in the task.
+     */
     AssemblyTask(std::vector<u_int8_t> input_agv_numbers,
                  u_int8_t input_station,
                  std::vector<AssemblyPart> input_parts)
@@ -200,7 +299,11 @@ public:
         parts = input_parts;
     }
 
-    // set assembly station
+    /**
+     * @brief Sets the assembly station.
+     * @param input_station The station identifier.
+     * @return The station as a string.
+     */
     std::string set_station(uint8_t input_station)
     {
         switch (input_station)
@@ -218,30 +321,47 @@ public:
         }
     }
 
-    // getter function
+    /** @brief Gets the list of AGV numbers assigned to the task. */
     const std::vector<u_int8_t> &get_agv_numbers() const { return agv_numbers; }
+
+    /** @brief Gets the station of the assembly task. */   
     std::string get_station() const { return station; }
+
+    /** @brief Gets the list of parts involved in the task. */  
     const std::vector<AssemblyPart> &get_parts() const { return parts; }
 
 private:
-    std::vector<u_int8_t> agv_numbers;
-    std::string station;
-    std::vector<AssemblyPart> parts;
+    std::vector<u_int8_t> agv_numbers; ///< List of AGV numbers
+    std::string station; ///< Assembly station 
+    std::vector<AssemblyPart> parts;  ///< List of parts
 };
 
-// combined class -> Task Class
+/**
+ * @class CombinedTask
+ * @brief Represents a combined task.
+ */
 class CombinedTask
 {
 public:
+    /** @brief Default constructor. */
     CombinedTask() = default;
 
+    /**
+     * @brief Constructor to initialize a combined task.
+     * @param input_station The assembly station.
+     * @param input_parts List of parts involved in the task.
+     */
     CombinedTask(u_int8_t input_station, std::vector<AssemblyPart> input_parts)
     {
         station = set_station(input_station);
         parts = input_parts;
     }
 
-    // set assembly station
+    /**
+     * @brief Sets the assembly station.
+     * @param input_station The station identifier.
+     * @return The station as a string.
+     */
     std::string set_station(uint8_t input_station)
     {
         switch (input_station)
@@ -259,23 +379,32 @@ public:
         }
     }
 
-    // getter function
+    /** @brief Gets the station of the combined task. */
     std::string get_station() const { return station; }
+
+    /** @brief Gets the list of parts involved in the task. */   
     const std::vector<AssemblyPart> &get_parts() const { return parts; }
 
 private:
-    std::string station;
-    std::vector<AssemblyPart> parts;
+    std::string station; ///< Assembly station
+    std::vector<AssemblyPart> parts; ///< List of parts
 };
 
-// order class
+/**
+ * @class Order
+ * @brief Represents an order in the ARIAC system.
+ */
 class Order
 {
 public:
-    // Default Constructor
+    /** @brief Default constructor. */
     Order() = default;
 
-    // Constructor
+    /**
+     * @brief Constructor to initialize an order.
+     * @param order_id Unique identifier for the order.
+     * @param order_type Type of the order.
+     */
     Order(std::string input_id,
           uint8_t input_type,
           bool input_priority,
@@ -290,8 +419,16 @@ public:
         assembly_task = input_assembly_task;
         combined_task = input_combined_task;
     }
-
-    // set type of task
+/**
+ * @brief Sets the type of the task.
+ * 
+ * This method sets the task type based on the provided input type. It maps the input integer 
+ * to a corresponding string representing the task type (e.g., "KITTING", "ASSEMBLY", or "COMBINED").
+ * If the input type is not recognized, it returns "no type added".
+ * 
+ * @param input_type The type identifier as an integer (defined in `ariac_msgs::msg::Order`).
+ * @return A string representing the type of the task.
+ */
     std::string set_type(uint8_t input_type)
     {
         switch (input_type)
@@ -307,28 +444,44 @@ public:
         }
     }
 
-    // getter functions
+    /** @brief Gets the order ID. */
     std::string get_id() const { return id; }
+
+    /** @brief Gets the order type. */
     std::string get_type() const { return type; }
+
+    /** @brief Gets the priority. */
     bool get_priority() const { return priority; }
+
+    /** @brief Gets the kitting task object. */
     const KittingTask &get_kitting_task() const { return kitting_task; }
+
+    /** @brief Gets the assembly task object. */
     const AssemblyTask &get_assembly_task() const { return assembly_task; }
+
+    /** @brief Gets the combined task object. */
     const CombinedTask &get_combined_task() const { return combined_task; }
 
 private:
-    // fields
-    std::string id{};
-    std::string type{};
+    std::string id{}; ///< Unique identifier for the order
+    std::string type{}; ///< Unique identifier for the order
     bool priority{};
     KittingTask kitting_task;
     AssemblyTask assembly_task;
     CombinedTask combined_task;
 };
 
+ /**
+  * @class RetrieveOrders
+  * @brief A ROS 2 node for retrieving and managing orders.
+  */
 class RetrieveOrders : public rclcpp::Node
 {
 public:
-    // Constructor
+     /**
+      * @brief Constructor for the RetrieveOrders node.
+      * @param node_name Name of the node.
+      */
     RetrieveOrders(std::string node_name) : Node(node_name)
     {
         subscriber_ = this->create_subscription<ariac_msgs::msg::Order>("/ariac/orders", 10,
@@ -338,16 +491,25 @@ public:
         // RCLCPP_INFO(this->get_logger(),"subscriber created");
     }
 
-    // subscriber callback
+     /**
+      * @brief Callback function for processing incoming orders.
+      * @param msg Shared pointer to the received order message.
+      */
     void order_callback(const ariac_msgs::msg::Order::SharedPtr msg);
+    
+    /**
+      * @brief Displays order details.
+      * @param order The order to be displayed.
+      */
     void display_order(const Order &order);
 
 private:
     // subscriber_
     rclcpp::Subscription<ariac_msgs::msg::Order>::SharedPtr subscriber_;
 
-    // Storing Orders in a queue
+    ///< Queue storing normal priority orders
     std::queue<Order> normal_orders;
 
+    ///< Queue storing high priority orders.
     std::queue<Order> priority_orders;
 };

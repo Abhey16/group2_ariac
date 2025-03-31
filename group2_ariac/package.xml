@@ -3,7 +3,11 @@
 <package format="3">
   <name>group2_ariac</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>
+    Group2 ARIAC package:
+    Starts the competition, Processes orders,
+    Ships orders, Submits orders and ends the competition.
+  </description>
   <maintainer email="abhey2526@gmail.com">abhey</maintainer>
   <maintainer email="w_apple19910215@icloud.com">wei-li</maintainer>  
   <maintainer email="reyroque@umd.edu">rey</maintainer>

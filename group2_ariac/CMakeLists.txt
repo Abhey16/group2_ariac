@@ -19,9 +19,6 @@ include_directories(include include/group2_ariac)
 add_executable(start_competition_node src/start_competition_node.cpp)
 ament_target_dependencies(start_competition_node rclcpp std_srvs ariac_msgs)
 
-add_executable(order_processing_node src/order_processing_node.cpp)
-ament_target_dependencies(order_processing_node rclcpp ariac_msgs)
-
 add_executable(retrieve_orders src/retrieve_orders.cpp)
 ament_target_dependencies(retrieve_orders rclcpp ariac_msgs)
 
@@ -36,12 +33,15 @@ ament_target_dependencies(end_competition_node rclcpp std_srvs ariac_msgs)
 
 install(TARGETS
         start_competition_node
-        order_processing_node
         retrieve_orders
         ship_orders
         complete_orders
         end_competition_node
         DESTINATION lib/${PROJECT_NAME}
+        )
+
+install(DIRECTORY launch
+        DESTINATION share/${PROJECT_NAME}
         )
 
 #--------

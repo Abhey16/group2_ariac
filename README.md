@@ -27,4 +27,5 @@ The goal is to manage an ARIAC competition environment using **ROS 2** and **Gaz
     source install/setup.bash
 2. Launch ARIAC
     ros2 launch ariac_gazebo ariac.launch.py trial_name:=rwa2_spring2025
-3. run 
+3. Run nodes
+    ros2 launch group2_ariac group2_ariac.launch.py

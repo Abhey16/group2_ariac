@@ -27,6 +27,7 @@ class TrayDectector : public rclcpp::Node
 
         void kt_right_cb(sensor_msgs::msg::Image::ConstSharedPtr img);
         void kt_left_cb(sensor_msgs::msg::Image::ConstSharedPtr img);
+        void detect_aruco(cv::Mat input_img, std::string win_name);
     
     private:
         rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr kt_right_sub_;

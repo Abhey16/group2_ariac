@@ -13,6 +13,10 @@ find_package(rclpy REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(ariac_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(OpenCV REQUIRED)
+find_package(cv_bridge REQUIRED)
+
 
 # Nodes
 include_directories(include include/group2_ariac)
@@ -32,16 +36,22 @@ ament_target_dependencies(complete_orders rclcpp ariac_msgs std_srvs)
 add_executable(end_competition_node src/end_competition_node.cpp)
 ament_target_dependencies(end_competition_node rclcpp std_srvs ariac_msgs)
 
+add_executable(tray_detector src/tray_detector.cpp)
+ament_target_dependencies(tray_detector rclcpp sensor_msgs cv_bridge OpenCV)
+
 install(TARGETS
         start_competition_node
         retrieve_orders
         ship_orders
         complete_orders
         end_competition_node
+        tray_detector
         DESTINATION lib/${PROJECT_NAME}
         )
 
-install(DIRECTORY launch
+install(DIRECTORY 
+        launch
+        config
         DESTINATION share/${PROJECT_NAME}
         )
 

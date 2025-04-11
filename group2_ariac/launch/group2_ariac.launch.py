@@ -16,6 +16,11 @@ def generate_launch_description():
             ),
             Node(
                 package="group2_ariac", 
+                executable='tray_detector',
+                name='tray_detector'
+            ),            
+            Node(
+                package="group2_ariac", 
                 executable='ship_orders',
                 name='ship_orders'
             ),

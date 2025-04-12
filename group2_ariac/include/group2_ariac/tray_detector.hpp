@@ -4,6 +4,7 @@
 #include <opencv2/aruco.hpp>
 #include <cv_bridge/cv_bridge.hpp>
 #include <opencv2/opencv.hpp>
+#include <opencv2/core/quaternion.hpp>
 
 
 class TrayDetector : public rclcpp::Node

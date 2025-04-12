@@ -61,9 +61,19 @@ void TrayDetector::tray_pose(cv::Mat input_img, std::string win_name)
         std::vector<cv::Vec3d> rvecs, tvecs;
         cv::aruco::estimatePoseSingleMarkers(corners, 0.05, rgb_intrinsic, rgb_dis, rvecs, tvecs);
 
+
         for(size_t i=0; i<ids.size(); i++)
-        {
+        {   
+
             cv::drawFrameAxes(imageCopy, rgb_intrinsic, rgb_dis, rvecs[i], tvecs[i], 0.1);
+
+            cv::Quatd q = cv::Quatd::createFromRvec(rvecs[i]);
+
+            RCLCPP_INFO(this->get_logger(), "##############################################");
+
+            RCLCPP_INFO(this->get_logger(), "Tray %d : [%.4f %.4f %.4f] [%.4f %.4f %.4f %.4f]", ids[i],tvecs[i][0], tvecs[i][1], tvecs[i][2],q.w,q.x,q.y,q.z );
+
+            RCLCPP_INFO(this->get_logger(), "##############################################");
         }
     }
 

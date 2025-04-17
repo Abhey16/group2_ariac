@@ -14,8 +14,11 @@ find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(ariac_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(cv_bridge REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_eigen REQUIRED)
@@ -45,6 +48,9 @@ ament_target_dependencies(end_competition_node rclcpp std_srvs ariac_msgs)
 add_executable(tray_detector src/tray_detector.cpp)
 ament_target_dependencies(tray_detector rclcpp sensor_msgs cv_bridge OpenCV  geometry_msgs tf2_ros tf2_eigen Eigen3 orocos_kdl)
 
+add_executable(bin_parts_detector src/bin_parts_detector.cpp)
+ament_target_dependencies(bin_parts_detector rclcpp sensor_msgs geometry_msgs cv_bridge OpenCV tf2 tf2_ros tf2_geometry_msgs)
+
 install(TARGETS
         start_competition_node
         retrieve_orders
@@ -52,14 +58,18 @@ install(TARGETS
         complete_orders
         end_competition_node
         tray_detector
+        bin_parts_detector
         DESTINATION lib/${PROJECT_NAME}
         )
 
 install(DIRECTORY 
         launch
         config
+        resources
         DESTINATION share/${PROJECT_NAME}
         )
+
+set(CMAKE_BUILD_TYPE Debug) 
 
 #--------
 # Python

@@ -21,6 +21,12 @@
   <depend>sensor_msgs</depend>
   <depend>std_srvs</depend>
   <depend>opencv4</depend>
+  <depend>geometry_msgs</depend>
+  <depend>kdl_parser</depend>
+  <depend>orocos_kdl_vendor</depend>
+  <depend>tf2_eigen</depend>
+  <depend>tf2_ros</depend>
+
 <!-- 
   <build_depend>cv_bridge</build_depend>
   <exec_depend>cv_bridge</exec_depend> -->

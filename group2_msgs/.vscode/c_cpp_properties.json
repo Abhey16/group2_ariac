@@ -1,0 +1,30 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/rey/ariac_ws/install/enpm663_interfaces/include/**",
+        "/home/rey/ariac_ws/install/ariac_sensors/include/**",
+        "/home/rey/ariac_ws/install/ariac_plugins/include/**",
+        "/home/rey/ariac_ws/install/ariac_msgs/include/**",
+        "/home/rey/ariac_ws/install/ariac_controllers/include/**",
+        "/opt/ros/iron/include/**",
+        "/home/rey/ariac_ws/src/ARIAC/ariac_controllers/include/**",
+        "/home/rey/ariac_ws/src/ARIAC/ariac_plugins/include/**",
+        "/home/rey/ariac_ws/src/ARIAC/ariac_sensors/include/**",
+        "/home/rey/ariac_ws/src/group2_ariac/group2_ariac/include/**",
+        "/home/rey/ariac_ws/src/group2_ariac/group2_msgs/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

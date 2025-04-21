@@ -40,5 +40,12 @@ def generate_launch_description():
             # #     executable='end_competition_node',
             # #     name='end_competition_node'
             # # ),
+            Node(
+                package="group2_ariac", 
+                executable='conveyor_tracker_node',
+                name='conveyor_tracker_node',
+                output='screen'
+            ),
+
         ]
     )

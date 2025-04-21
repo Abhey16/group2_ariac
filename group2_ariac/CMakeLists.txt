@@ -48,7 +48,7 @@ add_executable(end_competition_node src/end_competition_node.cpp)
 ament_target_dependencies(end_competition_node rclcpp std_srvs ariac_msgs)
 
 add_executable(tray_detector src/tray_detector.cpp)
-ament_target_dependencies(tray_detector rclcpp sensor_msgs cv_bridge OpenCV  geometry_msgs tf2_ros tf2_eigen Eigen3 orocos_kdl)
+ament_target_dependencies(tray_detector rclcpp sensor_msgs cv_bridge OpenCV  geometry_msgs tf2_ros tf2_eigen Eigen3 orocos_kdl ariac_msgs)
 
 add_executable(bin_parts_detector src/bin_parts_detector.cpp)
 ament_target_dependencies(bin_parts_detector rclcpp sensor_msgs geometry_msgs cv_bridge OpenCV tf2 tf2_ros tf2_geometry_msgs group2_msgs)

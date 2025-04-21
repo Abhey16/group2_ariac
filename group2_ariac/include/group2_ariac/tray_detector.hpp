@@ -5,6 +5,8 @@
  *        and estimates their poses relative to the camera and world frame using KDL and OpenCV.
  */
 
+#pragma once
+
 #include <rclcpp/rclcpp.hpp>
 #include <string>
 #include <sensor_msgs/msg/image.hpp>
@@ -15,6 +17,11 @@
 #include <Eigen/Geometry>
 #include <kdl/frames.hpp>
 #include <tf2_eigen/tf2_eigen.hpp>
+#include "ariac_msgs/msg/advanced_logical_camera_image.hpp"
+#include "ariac_msgs/msg/kit_tray_pose.hpp"
+#include "geometry_msgs/msg/pose.hpp"
+#include "geometry_msgs/msg/point.hpp"
+#include "geometry_msgs/msg/quaternion.hpp"
 
 /**
  * @class TrayDetector
@@ -38,6 +45,15 @@ public:
                                                                           10,
                                                                           std::bind(&TrayDetector::kt_left_cb, this, std::placeholders::_1));
 
+        // Initialize timer to run part detection
+        publish_trays_timer_ = this->create_wall_timer(
+            std::chrono::milliseconds(100),
+            std::bind(&TrayDetector::publish_trays_cb, this));
+
+        // Initialize publisher for detected parts
+        detected_trays_pub_ = this->create_publisher<ariac_msgs::msg::AdvancedLogicalCameraImage>("detected_trays", 10);
+        // tray_msg_ = std::make_shared<ariac_msgs::msg::AdvancedLogicalCameraImage>();
+
         RCLCPP_INFO(this->get_logger(), "tray detector class created");
     }
 
@@ -52,6 +68,11 @@ public:
      * @param img Pointer to the received image message.
      */
     void kt_left_cb(sensor_msgs::msg::Image::ConstSharedPtr img);
+
+    /**
+     * @brief Callback for publishing detected trays
+     */
+    void publish_trays_cb();
 
     /**
      * @brief Detects ArUco markers in the given image and draws them.
@@ -120,6 +141,19 @@ private:
 
     /// Subscription to left RGB camera image
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr kt_left_sub_;
+
+    /**
+     * @brief Publisher for detected trays
+     */
+    rclcpp::Publisher<ariac_msgs::msg::AdvancedLogicalCameraImage>::SharedPtr detected_trays_pub_;
+
+    /**
+     * @brief Timer to publish detections
+     */
+    rclcpp::TimerBase::SharedPtr publish_trays_timer_;
+
+    // Using LogicalCameraMessages to store and publish tray poses
+    ariac_msgs::msg::AdvancedLogicalCameraImage tray_msg_;
 
     /// Latest RGB image from right camera
     cv::Mat kt_right_rgb{};

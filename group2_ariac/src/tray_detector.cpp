@@ -88,6 +88,43 @@ void TrayDetector::tray_pose(cv::Mat input_img, std::string win_name)
 
             cv::Quatd q = cv::Quatd::createFromRvec(rvecs[i]);
 
+            // Creating tray pose message
+            ariac_msgs::msg::KitTrayPose KitTray;
+            geometry_msgs::msg::Pose TrayPose;
+            geometry_msgs::msg::Point TrayPoint;
+            geometry_msgs::msg::Quaternion TrayOrientation;
+
+            TrayPoint.x = tvecs[i][0];
+            TrayPoint.y = tvecs[i][1];
+            TrayPoint.z = tvecs[i][2];
+            TrayOrientation.x = q.x;
+            TrayOrientation.y = q.y;
+            TrayOrientation.z = q.z;
+            TrayOrientation.w = q.w;
+
+            TrayPose.position = TrayPoint;
+            TrayPose.orientation = TrayOrientation;
+
+            KitTray.id = ids[i];
+            KitTray.pose = TrayPose;
+
+            int current_id = KitTray.id; // or whatever ID you're checking for
+            bool already_exists = false;
+
+            for (const auto &tray : tray_msg_.tray_poses)
+            {
+                if (tray.id == current_id)
+                {
+                    already_exists = true;
+                    break;
+                }
+            }
+
+            if (!already_exists)
+            {
+                tray_msg_.tray_poses.push_back(KitTray);
+            }
+
             // Log tray pose (translation + quaternion)
             RCLCPP_INFO(this->get_logger(), "##############################################");
 
@@ -203,6 +240,11 @@ std::tuple<double, double, double> TrayDetector::euler_from_quaternion(const geo
     Eigen::Quaterniond eigen_q(q.w, q.x, q.y, q.z);
     Eigen::Vector3d euler = eigen_q.toRotationMatrix().eulerAngles(0, 1, 2);
     return std::make_tuple(euler[0], euler[1], euler[2]);
+}
+
+void TrayDetector::publish_trays_cb()
+{
+    detected_trays_pub_->publish(tray_msg_);
 }
 
 // Main function to initialize ROS node and start spinning

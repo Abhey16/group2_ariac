@@ -14,17 +14,17 @@ def generate_launch_description():
             #     executable='retrieve_orders',
             #     name='retrieve_orders'
             # ),
-            # Node(
-            #     package="group2_ariac", 
-            #     executable='tray_detector',
-            #     name='tray_detector'
-            # ),            
             Node(
                 package="group2_ariac", 
-                executable='bin_parts_detector',
-                name='bin_parts_detector',
-                # prefix=["gdbserver localhost:3000"],
-            ),   
+                executable='tray_detector',
+                name='tray_detector'
+            ),            
+            # Node(
+            #     package="group2_ariac", 
+            #     executable='bin_parts_detector',
+            #     name='bin_parts_detector',
+            #     # prefix=["gdbserver localhost:3000"],
+            # ),   
             # # Node(
             # #     package="group2_ariac", 
             # #     executable='ship_orders',

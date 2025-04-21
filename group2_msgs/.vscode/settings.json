@@ -1,0 +1,32 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/rey/ariac_ws/install/sub_demo_pkg/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/service_demo_pkg/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/pub_demo_pkg/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/node_demo_pkg/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/lifecycle_node_demo_pkg/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/interface_demo_pkg/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/executor_demo_pkg/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/enpm663_interfaces/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/av_demo_pkg/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/ariac_gui/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/ariac_msgs/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/ariac_gazebo/lib/python3.10/site-packages",
+        "/opt/ros/iron/lib/python3.10/site-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/rey/ariac_ws/install/sub_demo_pkg/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/service_demo_pkg/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/pub_demo_pkg/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/node_demo_pkg/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/lifecycle_node_demo_pkg/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/interface_demo_pkg/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/executor_demo_pkg/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/enpm663_interfaces/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/av_demo_pkg/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/ariac_gui/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/ariac_msgs/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/ariac_gazebo/lib/python3.10/site-packages",
+        "/opt/ros/iron/lib/python3.10/site-packages"
+    ]
+}

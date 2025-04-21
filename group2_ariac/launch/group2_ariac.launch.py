@@ -16,18 +16,23 @@ def generate_launch_description():
             ),
             Node(
                 package="group2_ariac", 
-                executable='ship_orders',
-                name='ship_orders'
-            ),
-            Node(
-                package="group2_ariac", 
-                executable='complete_orders',
-                name='complete_orders'
-            ),                                    
-            Node(
-                package="group2_ariac", 
-                executable='end_competition_node',
-                name='end_competition_node'
-            ),
+                executable='tray_detector',
+                name='tray_detector'
+            ),            
+            # Node(
+            #     package="group2_ariac", 
+            #     executable='ship_orders',
+            #     name='ship_orders'
+            # ),
+            # Node(
+            #     package="group2_ariac", 
+            #     executable='complete_orders',
+            #     name='complete_orders'
+            # ),                                    
+            # Node(
+            #     package="group2_ariac", 
+            #     executable='end_competition_node',
+            #     name='end_competition_node'
+            # ),
         ]
     )

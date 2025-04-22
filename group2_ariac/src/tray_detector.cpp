@@ -125,33 +125,33 @@ void TrayDetector::tray_pose(cv::Mat input_img, std::string win_name)
                 tray_msg_.tray_poses.push_back(KitTray);
             }
 
-            // Log tray pose (translation + quaternion)
-            RCLCPP_INFO(this->get_logger(), "##############################################");
+            // // Log tray pose (translation + quaternion)
+            // RCLCPP_INFO(this->get_logger(), "##############################################");
 
-            RCLCPP_INFO(this->get_logger(), "Tray %d : [%.4f %.4f %.4f] [%.4f %.4f %.4f %.4f]", ids[i], tvecs[i][0], tvecs[i][1], tvecs[i][2], q.x, q.y, q.z, q.w);
+            // RCLCPP_INFO(this->get_logger(), "Tray %d : [%.4f %.4f %.4f] [%.4f %.4f %.4f %.4f]", ids[i], tvecs[i][0], tvecs[i][1], tvecs[i][2], q.x, q.y, q.z, q.w);
 
-            // // getting the part in world coordinate frame
-            // KDL::Frame kdl_camera_world;
+            // // // getting the part in world coordinate frame
+            // // KDL::Frame kdl_camera_world;
 
-            // if (ids[i]==1 or ids[i]==2)
-            //     {
-            //         KDL::Frame kdl_camera_world(
-            //             TrayDetector::ros_quaternion_to_kdl_rotation(TrayDetector::euler_to_quaternions(3.14, 3.14/2, 3.14/2)),
-            //             KDL::Vector(-1.3, -5.8, 1.8)
-            //         );
-            //         TrayDetector::part_world(TrayDetector::cv_to_ros_quaternions(q), tvecs[i][0], tvecs[i][1], tvecs[i][2], kdl_camera_world);
+            // // if (ids[i]==1 or ids[i]==2)
+            // //     {
+            // //         KDL::Frame kdl_camera_world(
+            // //             TrayDetector::ros_quaternion_to_kdl_rotation(TrayDetector::euler_to_quaternions(3.14, 3.14/2, 3.14/2)),
+            // //             KDL::Vector(-1.3, -5.8, 1.8)
+            // //         );
+            // //         TrayDetector::part_world(TrayDetector::cv_to_ros_quaternions(q), tvecs[i][0], tvecs[i][1], tvecs[i][2], kdl_camera_world);
 
-            //     }
-            // else
-            //     {
-            //         KDL::Frame kdl_camera_world(
-            //             TrayDetector::ros_quaternion_to_kdl_rotation(TrayDetector::euler_to_quaternions(3.14, 3.14/2, - 3.14/2)),
-            //             KDL::Vector(-1.3, 5.8, 1.8)
-            //         );
-            //         TrayDetector::part_world(TrayDetector::cv_to_ros_quaternions(q), tvecs[i][0], tvecs[i][1], tvecs[i][2], kdl_camera_world);
-            //     }
+            // //     }
+            // // else
+            // //     {
+            // //         KDL::Frame kdl_camera_world(
+            // //             TrayDetector::ros_quaternion_to_kdl_rotation(TrayDetector::euler_to_quaternions(3.14, 3.14/2, - 3.14/2)),
+            // //             KDL::Vector(-1.3, 5.8, 1.8)
+            // //         );
+            // //         TrayDetector::part_world(TrayDetector::cv_to_ros_quaternions(q), tvecs[i][0], tvecs[i][1], tvecs[i][2], kdl_camera_world);
+            // //     }
 
-            RCLCPP_INFO(this->get_logger(), "##############################################");
+            // RCLCPP_INFO(this->get_logger(), "##############################################");
         }
     }
 

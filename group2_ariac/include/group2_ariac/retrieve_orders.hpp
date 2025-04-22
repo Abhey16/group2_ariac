@@ -13,6 +13,11 @@
 #include "ariac_msgs/msg/order.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/vector3.hpp"
+#include "ariac_msgs/msg/advanced_logical_camera_image.hpp"
+#include "ariac_msgs/msg/kit_tray_pose.hpp"
+#include "geometry_msgs/msg/pose.hpp"
+#include "geometry_msgs/msg/point.hpp"
+#include "geometry_msgs/msg/quaternion.hpp"
  
  /**
   * @class Part
@@ -398,7 +403,9 @@ class Order
 {
 public:
     /** @brief Default constructor. */
-    Order() = default;
+    // Order() = default;
+    Order() : id("null") {}
+
 
     /**
      * @brief Constructor to initialize an order.
@@ -462,6 +469,8 @@ public:
     /** @brief Gets the combined task object. */
     const CombinedTask &get_combined_task() const { return combined_task; }
 
+    bool is_valid() const {return id != "null";}
+
 private:
     std::string id{}; ///< Unique identifier for the order
     std::string type{}; ///< Unique identifier for the order
@@ -484,11 +493,23 @@ public:
       */
     RetrieveOrders(std::string node_name) : Node(node_name)
     {
-        subscriber_ = this->create_subscription<ariac_msgs::msg::Order>("/ariac/orders", 10,
+        order_subscriber_ = this->create_subscription<ariac_msgs::msg::Order>("/ariac/orders", 10,
                                                                         std::bind(&RetrieveOrders::order_callback, this,
                                                                                   std::placeholders::_1));
 
         // RCLCPP_INFO(this->get_logger(),"subscriber created");
+        
+        tray_pose_subscriber_ = this->create_subscription<ariac_msgs::msg::AdvancedLogicalCameraImage>("/detected_trays", 10,
+            std::bind(&RetrieveOrders::tray_pose_callback, this,
+                      std::placeholders::_1));
+
+        // RCLCPP_INFO(this->get_logger()," tray subscriber created");
+
+        // Create the timer callback function
+        timer_ = this->create_wall_timer(
+            std::chrono::seconds(5),  // every 5 seconds
+            std::bind(&RetrieveOrders::order_processing_callback, this));
+
     }
 
      /**
@@ -496,6 +517,8 @@ public:
       * @param msg Shared pointer to the received order message.
       */
     void order_callback(const ariac_msgs::msg::Order::SharedPtr msg);
+
+    void tray_pose_callback(const ariac_msgs::msg::AdvancedLogicalCameraImage::SharedPtr msg );
     
     /**
       * @brief Displays order details.
@@ -503,13 +526,39 @@ public:
       */
     void display_order(const Order &order);
 
+    void order_processing_callback();
+
+    const std::queue<Order>& get_normal_orders() const { return normal_orders; }
+
+    const std::queue<Order>& get_priority_orders() const { return priority_orders; }
+
+    // Pops and returns the next priority order
+    Order pop_priority_order();
+
+    // Pops and returns the next normal order
+    Order pop_normal_order();
+
+    void log_tray_poses(const Order& current_order);
+
+
 private:
-    // subscriber_
-    rclcpp::Subscription<ariac_msgs::msg::Order>::SharedPtr subscriber_;
+    // order_subscriber_
+    rclcpp::Subscription<ariac_msgs::msg::Order>::SharedPtr order_subscriber_;
+
+    // tray pose subscriber;;
+    rclcpp::Subscription<ariac_msgs::msg::AdvancedLogicalCameraImage>::SharedPtr tray_pose_subscriber_;
 
     ///< Queue storing normal priority orders
     std::queue<Order> normal_orders;
 
     ///< Queue storing high priority orders.
     std::queue<Order> priority_orders;
+    
+    // timer callback
+    rclcpp::TimerBase::SharedPtr timer_;
+
+    ariac_msgs::msg::AdvancedLogicalCameraImage latest_tray_pose_;
+
+    bool tray_pose_received_ = false;  // flag to check if any message has been received
+
 };

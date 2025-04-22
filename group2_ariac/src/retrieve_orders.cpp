@@ -67,7 +67,97 @@ void RetrieveOrders::order_callback(const ariac_msgs::msg::Order::SharedPtr msg)
     }
 
     // Display the order details
-    RetrieveOrders::display_order(order);
+    // RetrieveOrders::display_order(order);
+}
+
+void RetrieveOrders::tray_pose_callback(const ariac_msgs::msg::AdvancedLogicalCameraImage::SharedPtr msg )
+{
+    // auto tray_poses_vec = msg->tray_poses;
+
+    // // for(const auto& poses : tray_poses_vec)
+    // // {
+    // //     RCLCPP_INFO(this->get_logger(), " Tray : %d", poses.id);
+    // // }
+
+    latest_tray_pose_ = *msg;
+    tray_pose_received_ = true;
+}
+
+
+void RetrieveOrders::order_processing_callback()
+{
+
+    // Pop from priority queue
+    Order current_order = pop_priority_order();
+
+    // Check if it's valid
+    if (current_order.is_valid()) {
+        RCLCPP_INFO(this->get_logger(), "-Order ID: %s", current_order.get_id().c_str());
+        // Add 
+
+        // get the tray pose from subscriber
+        if (tray_pose_received_) {
+
+            RetrieveOrders::log_tray_poses(current_order);
+
+        } 
+        else 
+        {
+            RCLCPP_WARN(this->get_logger(), "No tray pose message received yet.");
+        }
+
+        return;
+    }
+
+    // Pop from normal queue if priority was empty
+    current_order = pop_normal_order();
+    if (current_order.is_valid()) {
+        RCLCPP_INFO(this->get_logger(), "Order ID: %s", current_order.get_id().c_str());
+        
+        if (tray_pose_received_) {
+
+            RetrieveOrders::log_tray_poses(current_order);
+
+        } 
+        else 
+        {
+            RCLCPP_WARN(this->get_logger(), "No tray pose message received yet.");
+        }
+
+        return;
+    }
+
+    // If both were empty
+    RCLCPP_INFO(this->get_logger(), "No orders in either queue.");
+
+}
+
+Order RetrieveOrders::pop_priority_order() {
+    if (!priority_orders.empty()) {
+        Order next_order = priority_orders.front();
+        priority_orders.pop();
+        // RCLCPP_INFO(this->get_logger(), "Popped order: %s", next_order.get_id().c_str());
+        return next_order;
+    } 
+    else 
+    {
+        // RCLCPP_INFO(this->get_logger(), " No priority orders to pop.");
+        return Order();
+    }
+}
+
+Order RetrieveOrders::pop_normal_order() {
+    if (!normal_orders.empty()) {
+        Order next_order = normal_orders.front();
+        normal_orders.pop();
+        // RCLCPP_INFO(this->get_logger(), "Popped order: %s", next_order.get_id().c_str());
+        return next_order;
+    } 
+    else 
+    {
+        // RCLCPP_WARN(this->get_logger(), "No normal orders to pop.");
+        return Order();
+    }
 }
 
 void RetrieveOrders::display_order(const Order &order)
@@ -93,6 +183,40 @@ void RetrieveOrders::display_order(const Order &order)
     RCLCPP_INFO(this->get_logger(), "*****************************");
 }
 
+void RetrieveOrders::log_tray_poses(const Order& current_order)
+{
+    for (const auto& tray_pose : latest_tray_pose_.tray_poses) 
+    {
+        // RCLCPP_INFO(this->get_logger(), "Tray ID: %d", tray_pose.id);
+
+        int tray_id = tray_pose.id;
+        const auto& pose = tray_pose.pose;
+
+        if (tray_id == current_order.get_kitting_task().get_tray_id())
+        {
+
+            RCLCPP_INFO(this->get_logger(), 
+                "   -Tray ID %d: [%.4f, %.4f, %.4f][%.4f, %.4f, %.4f, %.4f]",
+                tray_id,
+                pose.position.x,
+                pose.position.y,
+                pose.position.z,
+                pose.orientation.x,
+                pose.orientation.y,
+                pose.orientation.z,
+                pose.orientation.w
+            );
+        }
+
+        else
+        {
+            continue;
+        }
+
+    }
+} 
+
+
 // Main function to initialize ROS node and start spinning
 int main(int argc, char **argv)
 {
@@ -101,8 +225,11 @@ int main(int argc, char **argv)
     // Create a RetrieveOrders node instance
     auto node = std::make_shared<RetrieveOrders>("retrieve_orders");
 
-    // Start spinning the node to handle callbacks and events
-    rclcpp::spin(node);
+    // Use a multithreaded executor to allow multiple callbacks
+    rclcpp::executors::MultiThreadedExecutor executor;
+    executor.add_node(node);
+
+    executor.spin();
     
     // Shutdown ROS when done
     rclcpp::shutdown();

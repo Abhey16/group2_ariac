@@ -51,12 +51,39 @@ void ConveyorTracker::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg
     cv::inRange(hsv, purple_lower, purple_upper, purple_mask);
 
     // Check if anything was detected
-    if (cv::countNonZero(blue_mask) > 2000) {
-        RCLCPP_INFO(this->get_logger(), "Detected BLUE BATTERY on conveyor");
+    std::vector<std::vector<cv::Point>> contours;
+    cv::findContours(blue_mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    for (const auto& c : contours) {
+        if (cv::contourArea(c) > 2000) {
+
+            RCLCPP_INFO(this->get_logger(), "BLUE BATTERY detected.");
+
+            double cam_x = -0.6;
+            double cam_y = 3.63;
+            double cam_z = 1.35;
+            double obj_z = 0.875;
+
+            double y = cam_y - (cam_z - obj_z);
+
+            RCLCPP_INFO(this->get_logger(), "BLUE BATTERY at [%.3f, %.3f, %.3f]", cam_x, y, obj_z);
+        }
     }
 
-    if (cv::countNonZero(purple_mask) > 2000) {
-        RCLCPP_INFO(this->get_logger(), "Detected PURPLE PUMP on conveyor");
+    cv::findContours(purple_mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    for (const auto& c : contours) {
+        if (cv::contourArea(c) > 2000) {
+            
+            RCLCPP_INFO(this->get_logger(), "PURPLE PUMP detected.");
+
+            double cam_x = -0.6;
+            double cam_y = 3.63;
+            double cam_z = 1.35;
+            double obj_z = 0.875;
+
+            double y = cam_y - (cam_z - obj_z);
+
+            RCLCPP_INFO(this->get_logger(), "PURPLE PUMP at [%.3f, %.3f, %.3f]", cam_x, y, obj_z);
+        }
     }
 }
 

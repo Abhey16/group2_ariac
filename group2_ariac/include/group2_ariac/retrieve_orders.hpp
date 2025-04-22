@@ -18,6 +18,8 @@
 #include "geometry_msgs/msg/pose.hpp"
 #include "geometry_msgs/msg/point.hpp"
 #include "geometry_msgs/msg/quaternion.hpp"
+#include "group2_msgs/msg/part.hpp"
+#include "group2_msgs/msg/part_list.hpp"
  
  /**
   * @class Part
@@ -503,6 +505,10 @@ public:
             std::bind(&RetrieveOrders::tray_pose_callback, this,
                       std::placeholders::_1));
 
+        bin_parts_subscriber_ = this->create_subscription<group2_msgs::msg::PartList>("/detected_bin_parts", 10,
+            std::bind(&RetrieveOrders::bin_part_callback, this,
+                        std::placeholders::_1));              
+
         // RCLCPP_INFO(this->get_logger()," tray subscriber created");
 
         // Create the timer callback function
@@ -519,6 +525,8 @@ public:
     void order_callback(const ariac_msgs::msg::Order::SharedPtr msg);
 
     void tray_pose_callback(const ariac_msgs::msg::AdvancedLogicalCameraImage::SharedPtr msg );
+
+    void bin_part_callback(const group2_msgs::msg::PartList::SharedPtr msg);
     
     /**
       * @brief Displays order details.
@@ -540,6 +548,7 @@ public:
 
     void log_tray_poses(const Order& current_order);
 
+    void log_bin_parts(const Order& current_order);
 
 private:
     // order_subscriber_
@@ -547,6 +556,8 @@ private:
 
     // tray pose subscriber;;
     rclcpp::Subscription<ariac_msgs::msg::AdvancedLogicalCameraImage>::SharedPtr tray_pose_subscriber_;
+
+    rclcpp::Subscription<group2_msgs::msg::PartList>::SharedPtr bin_parts_subscriber_;
 
     ///< Queue storing normal priority orders
     std::queue<Order> normal_orders;
@@ -559,6 +570,9 @@ private:
 
     ariac_msgs::msg::AdvancedLogicalCameraImage latest_tray_pose_;
 
+    group2_msgs::msg::PartList bin_parts_;
+
     bool tray_pose_received_ = false;  // flag to check if any message has been received
 
+    bool bin_parts_received_ = false;
 };

@@ -4,20 +4,34 @@
 void BinPartsDetector::bin_left_cb(sensor_msgs::msg::Image::ConstSharedPtr img)
 {
     bin_left_rgb_ = cv_bridge::toCvShare(img, "bgr8")->image;
+    left_image_ready_ = true;
 }
 
 // Right Camera Callback
 void BinPartsDetector::bin_right_cb(sensor_msgs::msg::Image::ConstSharedPtr img)
 {
     bin_right_rgb_ = cv_bridge::toCvShare(img, "bgr8")->image;
+    right_image_ready_ = true;
 }
 
 // Callback that initiates part detection
 void BinPartsDetector::detect_parts_cb()
 {
+    // Don't do anything if we haven't received an image
+    if (!(left_image_ready_ && right_image_ready_))
+    {
+        // RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+        //                      "Waiting for both images to be received...");
+        return;
+    }
+
+    // Reset flags immediately to wait for next valid pair
+    left_image_ready_ = false;
+    right_image_ready_ = false;
+
     // Clear the previous detections
     detected_parts_.clear();
-    
+
     // Loop through every bin
     for (int i = 1; i <= 8; i++)
     {
@@ -27,7 +41,8 @@ void BinPartsDetector::detect_parts_cb()
 
     group2_msgs::msg::PartList msg;
 
-    for (const auto& part : detected_parts_) {
+    for (const auto &part : detected_parts_)
+    {
         group2_msgs::msg::Part part_msg;
         part_msg.color = part.color;
         part_msg.type = part.type;
@@ -35,13 +50,13 @@ void BinPartsDetector::detect_parts_cb()
         part_msg.location = "bin" + std::to_string(part.bin_number);
         part_msg.position = part.position;
         part_msg.orientation = part.orientation;
-    
+
         msg.parts.push_back(part_msg);
     }
-    
+
     detected_parts_pub_->publish(msg);
-    
-    print_detected_parts();
+
+    // print_detected_parts();
 }
 
 // Find all parts for the given bin number

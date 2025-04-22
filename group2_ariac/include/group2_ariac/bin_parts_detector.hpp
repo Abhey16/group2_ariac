@@ -284,4 +284,10 @@ private:
      */
     void print_detected_parts();
 
+        /**
+     * @brief Received image flag
+     */
+    bool left_image_ready_ = false;
+    bool right_image_ready_ = false;
+
 }; // class BinPartsDetector

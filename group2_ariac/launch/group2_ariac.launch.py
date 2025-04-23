@@ -9,11 +9,11 @@ def generate_launch_description():
                 executable='start_competition_node',
                 name='start_competition_node'
             ),
-            # Node(
-            #     package="group2_ariac", 
-            #     executable='retrieve_orders',
-            #     name='retrieve_orders'
-            # ),
+            Node(
+                package="group2_ariac", 
+                executable='retrieve_orders',
+                name='retrieve_orders'
+            ),
             Node(
                 package="group2_ariac", 
                 executable='tray_detector',

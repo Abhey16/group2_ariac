@@ -3,7 +3,6 @@
  * @author Rey Roque-Perez (reyroque@umd.edu)
  * @brief Class definition for the BinPartsDetector class
  * @version 0.1
- * @date 2025-04-20
  *
  * @copyright Copyright (c) 2025
  *
@@ -283,5 +282,11 @@ private:
      * @brief Logs detected parts for debugging
      */
     void print_detected_parts();
+
+        /**
+     * @brief Received image flag
+     */
+    bool left_image_ready_ = false;
+    bool right_image_ready_ = false;
 
 }; // class BinPartsDetector

@@ -509,6 +509,10 @@ public:
             std::bind(&RetrieveOrders::bin_part_callback, this,
                         std::placeholders::_1));              
 
+        conveyor_parts_subscriber_ = this->create_subscription<group2_msgs::msg::PartList>("/detected_conveyor_parts", 10,
+            std::bind(&RetrieveOrders::conveyor_part_callback, this,
+                        std::placeholders::_1)); 
+
         // RCLCPP_INFO(this->get_logger()," tray subscriber created");
 
         // Create the timer callback function
@@ -527,6 +531,8 @@ public:
     void tray_pose_callback(const ariac_msgs::msg::AdvancedLogicalCameraImage::SharedPtr msg );
 
     void bin_part_callback(const group2_msgs::msg::PartList::SharedPtr msg);
+
+    void conveyor_part_callback(const group2_msgs::msg::PartList::SharedPtr msg);    
     
     /**
       * @brief Displays order details.
@@ -550,6 +556,8 @@ public:
 
     void log_bin_parts(const Order& current_order);
 
+    void log_conveyor_parts(const Order& current_order);    
+
 private:
     // order_subscriber_
     rclcpp::Subscription<ariac_msgs::msg::Order>::SharedPtr order_subscriber_;
@@ -558,6 +566,8 @@ private:
     rclcpp::Subscription<ariac_msgs::msg::AdvancedLogicalCameraImage>::SharedPtr tray_pose_subscriber_;
 
     rclcpp::Subscription<group2_msgs::msg::PartList>::SharedPtr bin_parts_subscriber_;
+
+    rclcpp::Subscription<group2_msgs::msg::PartList>::SharedPtr conveyor_parts_subscriber_;    
 
     ///< Queue storing normal priority orders
     std::queue<Order> normal_orders;
@@ -572,7 +582,13 @@ private:
 
     group2_msgs::msg::PartList bin_parts_;
 
+    group2_msgs::msg::PartList conveyor_parts_;    
+
     bool tray_pose_received_ = false;  // flag to check if any message has been received
 
     bool bin_parts_received_ = false;
+
+    bool conveyor_parts_received_ = false; 
+    
+    bool parts_found_ = false;
 };

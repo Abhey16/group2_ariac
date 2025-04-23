@@ -4,3 +4,6 @@ string location
 int32 bin_number
 geometry_msgs/Point position
 geometry_msgs/Quaternion orientation
+geometry_msgs/Point initial_pos
+geometry_msgs/Point predicted_pos_1
+geometry_msgs/Point predicted_pos_2

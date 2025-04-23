@@ -28,6 +28,7 @@ find_package(Eigen3 REQUIRED)
 find_package(kdl_parser REQUIRED)
 find_package(orocos_kdl REQUIRED)
 find_package(group2_msgs REQUIRED)
+find_package(image_geometry REQUIRED)
 
 # Nodes
 include_directories(include include/group2_ariac)
@@ -54,7 +55,7 @@ add_executable(bin_parts_detector src/bin_parts_detector.cpp)
 ament_target_dependencies(bin_parts_detector rclcpp sensor_msgs geometry_msgs cv_bridge OpenCV tf2 tf2_ros tf2_geometry_msgs group2_msgs)
 
 add_executable(conveyor_tracker_node src/conveyor_tracker_node.cpp)
-ament_target_dependencies(conveyor_tracker_node rclcpp ariac_msgs sensor_msgs cv_bridge OpenCV)
+ament_target_dependencies(conveyor_tracker_node rclcpp ariac_msgs sensor_msgs cv_bridge OpenCV image_geometry group2_msgs)
 
 install(TARGETS
         start_competition_node

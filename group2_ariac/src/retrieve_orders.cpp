@@ -114,7 +114,14 @@ void RetrieveOrders::order_processing_callback()
             RCLCPP_WARN(this->get_logger(), "No bin_parts message received yet.");            
         }
 
-        // get conveyor parts
+        if (conveyor_parts_received_)
+        {
+            RetrieveOrders::log_conveyor_parts(current_order);
+        }
+        else
+        {   
+            RCLCPP_WARN(this->get_logger(), "No conveyor_parts message received yet.");            
+        }
 
         return;
     }
@@ -141,6 +148,14 @@ void RetrieveOrders::order_processing_callback()
             RCLCPP_WARN(this->get_logger(), "No bin_parts message received yet.");            
         }
 
+        if (conveyor_parts_received_)
+        {
+            RetrieveOrders::log_conveyor_parts(current_order);
+        }
+        else
+        {   
+            RCLCPP_WARN(this->get_logger(), "No conveyor_parts message received yet.");            
+        }
         return;
     }
 
@@ -154,6 +169,13 @@ void RetrieveOrders::bin_part_callback(const group2_msgs::msg::PartList::SharedP
     // RCLCPP_INFO(this->get_logger(), "Bin part callback");
     bin_parts_ = *msg;
     bin_parts_received_ = true;
+}
+
+void RetrieveOrders::conveyor_part_callback(const group2_msgs::msg::PartList::SharedPtr msg)
+{
+    // RCLCPP_INFO(this->get_logger(), "Conveyor part callback");
+    conveyor_parts_ = *msg;
+    conveyor_parts_received_ = true;
 }
 
 Order RetrieveOrders::pop_priority_order() {
@@ -230,6 +252,8 @@ void RetrieveOrders::log_tray_poses(const Order& current_order)
                 pose.orientation.z,
                 pose.orientation.w
             );
+            
+            RCLCPP_INFO(this->get_logger(), "   -Parts:");
         }
 
         else
@@ -242,17 +266,10 @@ void RetrieveOrders::log_tray_poses(const Order& current_order)
 
 void RetrieveOrders::log_bin_parts(const Order& current_order)
 {   
-    RCLCPP_INFO(this->get_logger(), "   -Parts:");
-
     for ( const auto& bin_part : bin_parts_.parts)
     {   
         for (const auto &part : current_order.get_kitting_task().get_parts())
         {   
-            // RCLCPP_INFO(this->get_logger(), "  - %s %s:",part.get_part().get_type().c_str(), part.get_part().get_color().c_str());
-            // RCLCPP_INFO(this->get_logger(), "    - Location: %s", bin_part.location.c_str());
-            // RCLCPP_INFO(this->get_logger(), "    - [%.3f, %.3f, %.3f] [%.1f, %.1f, %.1f, %.1f]",
-            //             bin_part.position.x, bin_part.position.y, bin_part.position.z,
-            //             bin_part.orientation.x, bin_part.orientation.y, bin_part.orientation.z, bin_part.orientation.w);
             std::string type = bin_part.type;
             std::transform(type.begin(), type.end(), type.begin(), ::toupper);
 
@@ -279,6 +296,47 @@ void RetrieveOrders::log_bin_parts(const Order& current_order)
         // if (bin_part.type == current_order.
     }
 }
+
+void RetrieveOrders::log_conveyor_parts(const Order& current_order)
+{   
+    for ( const auto& conveyor_part : conveyor_parts_.parts)
+    {   
+        for (const auto &part : current_order.get_kitting_task().get_parts())
+        {   
+            std::string type = conveyor_part.type;
+            std::transform(type.begin(), type.end(), type.begin(), ::toupper);
+
+            std::string color = conveyor_part.color;
+            std::transform(color.begin(), color.end(), color.begin(), ::toupper);
+
+            if (type == part.get_part().get_type().c_str() && color == part.get_part().get_color().c_str())
+            {   
+                // RCLCPP_INFO(this->get_logger(), "       - %s %s",
+                // part.get_part().get_color().c_str(),
+                // part.get_part().get_type().c_str());
+
+                RCLCPP_INFO(this->get_logger(), "  - %s %s:", conveyor_part.color.c_str(), conveyor_part.type.c_str());
+                RCLCPP_INFO(this->get_logger(), "    - Location: %s", conveyor_part.location.c_str());
+                RCLCPP_INFO(this->get_logger(), "    - First detection: [%.3f, %.3f, %.3f] [%.1f, %.1f, %.1f, %.1f]",
+                            conveyor_part.initial_pos.x, conveyor_part.initial_pos.y, conveyor_part.initial_pos.z,
+                            conveyor_part.orientation.x, conveyor_part.orientation.y, conveyor_part.orientation.z, conveyor_part.orientation.w);
+                RCLCPP_INFO(this->get_logger(), "    - Current Position: [%.3f, %.3f, %.3f] [%.1f, %.1f, %.1f, %.1f]",
+                            conveyor_part.position.x, conveyor_part.position.y, conveyor_part.position.z,
+                            conveyor_part.orientation.x, conveyor_part.orientation.y, conveyor_part.orientation.z, conveyor_part.orientation.w);                            
+                RCLCPP_INFO(this->get_logger(), "    - Prediction [1s]: [%.3f, %.3f, %.3f] [%.1f, %.1f, %.1f, %.1f]",
+                            conveyor_part.predicted_pos_1.x, conveyor_part.predicted_pos_1.y, conveyor_part.predicted_pos_1.z,
+                            conveyor_part.orientation.x, conveyor_part.orientation.y, conveyor_part.orientation.z, conveyor_part.orientation.w);  
+                RCLCPP_INFO(this->get_logger(), "    - Prediction [2s]: [%.3f, %.3f, %.3f] [%.1f, %.1f, %.1f, %.1f]",
+                            conveyor_part.predicted_pos_2.x, conveyor_part.predicted_pos_2.y, conveyor_part.predicted_pos_2.z,
+                            conveyor_part.orientation.x, conveyor_part.orientation.y, conveyor_part.orientation.z, conveyor_part.orientation.w);                            
+
+                break;
+            }
+        }
+        // if (conveyor_part.type == current_order.
+    }
+}
+
 // Main function to initialize ROS node and start spinning
 int main(int argc, char **argv)
 {

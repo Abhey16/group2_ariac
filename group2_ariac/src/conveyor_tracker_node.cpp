@@ -21,6 +21,8 @@ void ConveyorTracker::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg
         return;
     }
 
+    int image_center_x = image.cols / 2;
+
     // parts define
     cv::Mat hsv;
     cv::cvtColor(image, hsv, cv::COLOR_BGR2HSV);
@@ -37,24 +39,30 @@ void ConveyorTracker::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg
     cv::findContours(blue_mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
     for (const auto& c : contours) {
         if (cv::contourArea(c) > 2000) {
-            RCLCPP_INFO(this->get_logger(), "BLUE BATTERY detected in center.");
+            cv::Moments mu = cv::moments(c);
 
-            double cam_x = -0.6;
-            double cam_y = 3.63;
-            double cam_z = 1.35;
-            double obj_z = 0.875;
-            double belt_speed_ = 0.345;
+            if (mu.m00 == 0) continue;
 
-            double y = cam_y - (cam_z - obj_z);
+            cv::Point2f centroid(mu.m10 / mu.m00, mu.m01 / mu.m00);
+            if (std::abs(centroid.x - image_center_x) < 5) {
 
-            RCLCPP_INFO(this->get_logger(), "BLUE BATTERY at [%.3f, %.3f, %.3f]", cam_x, y, obj_z);
+                double cam_x = -0.6;
+                double cam_y = 3.63;
+                double cam_z = 1.35;
+                double obj_z = 0.875;
+                double belt_speed_ = 0.345;
 
-            // predic 1s, 2s later location
-            for (int sec = 1; sec <= 2; ++sec) {
-                double pred_y = y - belt_speed_ * sec;
-                RCLCPP_INFO(this->get_logger(),
-                "Prediction [%ds]: at [%.3f, %.3f, %.3f]",
-                sec, cam_x, pred_y, obj_z);
+                double y = cam_y - (cam_z - obj_z);
+
+                RCLCPP_INFO(this->get_logger(), "BLUE BATTERY at [%.3f, %.3f, %.3f]", cam_x, y, obj_z);
+
+                // predic 1s, 2s later location
+                for (int sec = 1; sec <= 2; ++sec) {
+                    double pred_y = y - belt_speed_ * sec;
+                    RCLCPP_INFO(this->get_logger(),
+                    "Prediction [%ds]: at [%.3f, %.3f, %.3f]",
+                    sec, cam_x, pred_y, obj_z);
+                }
             }
         }
     }
@@ -62,23 +70,29 @@ void ConveyorTracker::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg
     cv::findContours(purple_mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
     for (const auto& c : contours) {
         if (cv::contourArea(c) > 2000) {
-            RCLCPP_INFO(this->get_logger(), "PURPLE PUMP detected in center.");
+            cv::Moments mu = cv::moments(c);
 
-            double cam_x = -0.6;
-            double cam_y = 3.63;
-            double cam_z = 1.35;
-            double obj_z = 0.875;
-            double belt_speed_ = 0.345;
+            if (mu.m00 == 0) continue;
 
-            double y = cam_y - (cam_z - obj_z);
+            cv::Point2f centroid(mu.m10 / mu.m00, mu.m01 / mu.m00);
+            if (std::abs(centroid.x - image_center_x) < 5) {
 
-            RCLCPP_INFO(this->get_logger(), "PURPLE PUMP at [%.3f, %.3f, %.3f]", cam_x, y, obj_z);
-            // predic 1s, 2s later location
-            for (int sec = 1; sec <= 2; ++sec) {
-                double pred_y = y - belt_speed_ * sec;
-                RCLCPP_INFO(this->get_logger(),
-                "Prediction [%ds]: at [%.3f, %.3f, %.3f]",
-                sec, cam_x, pred_y, obj_z);
+                double cam_x = -0.6;
+                double cam_y = 3.63;
+                double cam_z = 1.35;
+                double obj_z = 0.875;
+                double belt_speed_ = 0.345;
+
+                double y = cam_y - (cam_z - obj_z);
+
+                RCLCPP_INFO(this->get_logger(), "PURPLE PUMP at [%.3f, %.3f, %.3f]", cam_x, y, obj_z);
+                // predic 1s, 2s later location
+                for (int sec = 1; sec <= 2; ++sec) {
+                    double pred_y = y - belt_speed_ * sec;
+                    RCLCPP_INFO(this->get_logger(),
+                    "Prediction [%ds]: at [%.3f, %.3f, %.3f]",
+                    sec, cam_x, pred_y, obj_z);
+                }
             }
         }
     }

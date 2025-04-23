@@ -2,7 +2,7 @@
 **Group Members:**  
 - Rey (120498626)
 - Wei-Li Chen  (120378508)
-- Abhey  
+- Abhey  (120110306)
 
 # Overview
 
@@ -28,6 +28,7 @@ The goal is to manage an ARIAC competition environment using **ROS 2** and **Gaz
     colcon build --packages-select ariac_gazebo
     source install/setup.bash
 2. Launch ARIAC
-    ros2 launch ariac_gazebo ariac.launch.py trial_name:=rwa3_spring2025
-3. Run nodes
+    ros2 launch ariac_gazebo ariac.launch.py competitor_pkg:=group2_ariac trial_name:=rwa3_spring2025
+
+4. Run nodes
     ros2 launch group2_ariac group2_ariac.launch.py

@@ -127,9 +127,10 @@ void TrayDetector::tray_pose(cv::Mat input_img, std::string win_name)
             }
 
             // Log tray pose (translation + quaternion)
-            RCLCPP_INFO(this->get_logger(), "##############################################");
+            // RCLCPP_INFO(this->get_logger(), "##############################################");
 
-            RCLCPP_INFO(this->get_logger(), "Tray %d : [%.4f %.4f %.4f] [%.4f %.4f %.4f %.4f]", ids[i], tvecs[i][0], tvecs[i][1], tvecs[i][2], q.x, q.y, q.z, q.w);
+            // Camera frame
+            // RCLCPP_INFO(this->get_logger(), "Tray %d : [%.4f %.4f %.4f] [%.4f %.4f %.4f %.4f]", ids[i], tvecs[i][0], tvecs[i][1], tvecs[i][2], q.x, q.y, q.z, q.w);
 
             // getting the part in world coordinate frame
             KDL::Frame kdl_camera_world;
@@ -158,7 +159,7 @@ void TrayDetector::tray_pose(cv::Mat input_img, std::string win_name)
                     TrayDetector::part_world(TrayDetector::cv_to_ros_quaternions(q), tvecs[i][0], tvecs[i][1], tvecs[i][2], kdl_camera_world);
                 }
 
-            RCLCPP_INFO(this->get_logger(), "##############################################");
+            // RCLCPP_INFO(this->get_logger(), "##############################################");
         }
     }
 
@@ -193,12 +194,12 @@ void TrayDetector::part_world(const geometry_msgs::msg::Quaternion &q, const dou
     pose.orientation = TrayDetector::kdl_rotation_to_ros_quaternion(kdl_part_world.M);
     auto [roll, pitch, yaw] = TrayDetector::euler_from_quaternion(pose.orientation);
 
-    // Print final world pose with orientation
-    RCLCPP_INFO(this->get_logger(), "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+    // // Print final world pose with orientation
+    // RCLCPP_INFO(this->get_logger(), "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
 
-    RCLCPP_INFO(this->get_logger(), "World frame : [%.4f %.4f %.4f] [%.4f %.4f %.4f]", pose.position.x, pose.position.y, pose.position.z, roll, pitch, yaw);
+    // RCLCPP_INFO(this->get_logger(), "World frame : [%.4f %.4f %.4f] [%.4f %.4f %.4f]", pose.position.x, pose.position.y, pose.position.z, roll, pitch, yaw);
 
-    RCLCPP_INFO(this->get_logger(), "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+    // RCLCPP_INFO(this->get_logger(), "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
 }
 
 // Helper function to convert geometry_msgs::msg::Quaternion to KDL::Rotation

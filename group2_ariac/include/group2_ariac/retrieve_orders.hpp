@@ -517,7 +517,7 @@ public:
 
         // Create the timer callback function
         timer_ = this->create_wall_timer(
-            std::chrono::seconds(5),  // every 5 seconds
+            std::chrono::seconds(2),  // every 2 seconds
             std::bind(&RetrieveOrders::order_processing_callback, this));
 
     }
@@ -548,9 +548,13 @@ public:
 
     // Pops and returns the next priority order
     Order pop_priority_order();
+    
+    Order get_priority_order();
 
     // Pops and returns the next normal order
     Order pop_normal_order();
+
+    Order get_normal_order();
 
     void log_tray_poses(const Order& current_order);
 
@@ -591,4 +595,8 @@ private:
     bool conveyor_parts_received_ = false; 
     
     bool parts_found_ = false;
+
+    bool ongoing_order_ = false;
+
+    bool current_priority = false;
 };

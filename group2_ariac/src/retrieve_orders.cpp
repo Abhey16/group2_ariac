@@ -85,83 +85,139 @@ void RetrieveOrders::tray_pose_callback(const ariac_msgs::msg::AdvancedLogicalCa
 
 
 void RetrieveOrders::order_processing_callback()
-{
+{   
+    // if the current process needs to stopped
+    bool stop_flag = false;
 
-    // Pop from priority queue
-    Order current_order = pop_priority_order();
+    RCLCPP_INFO(this->get_logger(), "******Status of Ongoing Order: %d *****", ongoing_order_);
 
-    // Check if it's valid
-    if (current_order.is_valid()) {
-        RCLCPP_INFO(this->get_logger(), "-Order ID: %s", current_order.get_id().c_str());
-
-        // get the tray pose from subscriber
-        if (tray_pose_received_ && bin_parts_received_) {
-            RetrieveOrders::log_tray_poses(current_order);
-        } 
-        else 
+    // check if there is an ongoing order
+    if (ongoing_order_)
+    {   
+        // check if the ongoing_order is not priority
+        if(!current_priority)
         {
-            RCLCPP_WARN(this->get_logger(), "No tray pose message received yet.");
+            // check if the next order is priority, stop ongoing order and update it
+            if (!priority_orders.empty())
+            {
+                stop_flag = true;
+                RCLCPP_INFO(this->get_logger(), "*********Status: Current Order is stopped*******");
+            }
+
+            // if ongoing order is not a priority & next order is not a priority, dont process order
+            else
+            {
+                return;
+            }
+    
         }
 
-        // get bin parts
-
-        if (bin_parts_received_)
-        {
-            RetrieveOrders::log_bin_parts(current_order);
-        }
+        // if ongoing order is a priority, dont process next order
         else
-        {   
-            RCLCPP_WARN(this->get_logger(), "No bin_parts message received yet.");            
-        }
-
-        if (conveyor_parts_received_)
         {
-            RetrieveOrders::log_conveyor_parts(current_order);
+            return;
         }
-        else
-        {   
-            RCLCPP_WARN(this->get_logger(), "No conveyor_parts message received yet.");            
-        }
-
-        return;
     }
 
-    // Pop from normal queue if priority was empty
-    current_order = pop_normal_order();
-    if (current_order.is_valid()) {
-        RCLCPP_INFO(this->get_logger(), "Order ID: %s", current_order.get_id().c_str());
-        
-        if (tray_pose_received_ && bin_parts_received_) {
-            RetrieveOrders::log_tray_poses(current_order);
-        } 
-        else 
-        {
-            RCLCPP_WARN(this->get_logger(), "No tray pose message received yet.");
-        }
+    if (!priority_orders.empty())
+    {
+        // Pop from priority queue
+        Order current_order = get_priority_order();
 
-        if (bin_parts_received_)
-        {
-            RetrieveOrders::log_bin_parts(current_order);
-        }
-        else
-        {   
-            RCLCPP_WARN(this->get_logger(), "No bin_parts message received yet.");            
-        }
+        // Check if it's valid
+        if (current_order.is_valid()) {
+            RCLCPP_INFO(this->get_logger(), "-Order ID: %s", current_order.get_id().c_str());
 
-        if (conveyor_parts_received_)
-        {
-            RetrieveOrders::log_conveyor_parts(current_order);
+            // Ongoing order
+            ongoing_order_ = true;
+
+            // get the tray pose from subscriber
+            // if (tray_pose_received_ && bin_parts_received_)
+            if (!latest_tray_pose_.tray_poses.empty()) {
+                RetrieveOrders::log_tray_poses(current_order);
+            } 
+            else 
+            {
+                RCLCPP_WARN(this->get_logger(), "No tray pose message received yet.");
+            }
+
+            // get bin parts
+
+            if (!bin_parts_.parts.empty())
+            {
+                RetrieveOrders::log_bin_parts(current_order);
+            }
+            else
+            {   
+                RCLCPP_WARN(this->get_logger(), "No bin_parts message received yet.");            
+            }
+
+            if (!conveyor_parts_.parts.empty())
+            {
+                RetrieveOrders::log_conveyor_parts(current_order);
+            }
+            else
+            {   
+                RCLCPP_WARN(this->get_logger(), "No conveyor_parts message received yet.");            
+            }
+
+            // simulating the order is completed
+            pop_priority_order();
+            ongoing_order_ = false;
+            
+            return;
         }
-        else
-        {   
-            RCLCPP_WARN(this->get_logger(), "No conveyor_parts message received yet.");            
+    }
+    
+    else
+    {
+        // Pop from normal queue if priority was empty
+        Order current_order = get_normal_order();
+        if (current_order.is_valid()) {
+            RCLCPP_INFO(this->get_logger(), "Order ID: %s", current_order.get_id().c_str());
+
+            // Ongoing order
+            ongoing_order_ = true;
+            
+            // RCLCPP_INFO(this->get_logger(), "tray_pose_received_ : %d", !latest_tray_pose_.tray_poses.empty());
+            if (!latest_tray_pose_.tray_poses.empty()) {
+                RetrieveOrders::log_tray_poses(current_order);
+            } 
+            else 
+            {
+                RCLCPP_WARN(this->get_logger(), "No tray pose message received yet.");
+            }
+
+            // RCLCPP_INFO(this->get_logger(), "tray_pose_received_ : %d",!bin_parts_.parts.empty());
+            if (!bin_parts_.parts.empty())
+            {
+                RetrieveOrders::log_bin_parts(current_order);
+            }
+            else
+            {   
+                RCLCPP_WARN(this->get_logger(), "No bin_parts message received yet.");            
+            }
+
+            // RCLCPP_INFO(this->get_logger(), "conveyor_parts_received_ : %d", !conveyor_parts_.parts.empty());
+            if (!conveyor_parts_.parts.empty())
+            {
+                RetrieveOrders::log_conveyor_parts(current_order);
+            }
+            else
+            {   
+                RCLCPP_WARN(this->get_logger(), "No conveyor_parts message received yet.");            
+            }
+
+            // Simulating the order is completed
+            pop_normal_order();
+            ongoing_order_ = false;
+
+            return;
         }
-        return;
     }
 
     // If both were empty
     RCLCPP_INFO(this->get_logger(), "No orders in either queue.");
-
 }
 
 void RetrieveOrders::bin_part_callback(const group2_msgs::msg::PartList::SharedPtr msg)
@@ -178,11 +234,35 @@ void RetrieveOrders::conveyor_part_callback(const group2_msgs::msg::PartList::Sh
     conveyor_parts_received_ = true;
 }
 
+Order RetrieveOrders::get_priority_order() {
+    if (!priority_orders.empty()) {
+        Order next_order = priority_orders.front();
+        return next_order;
+    } 
+    else 
+    {
+        // RCLCPP_INFO(this->get_logger(), " No priority orders to pop.");
+        return Order();
+    }
+}
+
 Order RetrieveOrders::pop_priority_order() {
     if (!priority_orders.empty()) {
         Order next_order = priority_orders.front();
         priority_orders.pop();
         // RCLCPP_INFO(this->get_logger(), "Popped order: %s", next_order.get_id().c_str());
+        return next_order;
+    } 
+    else 
+    {
+        // RCLCPP_INFO(this->get_logger(), " No priority orders to pop.");
+        return Order();
+    }
+}
+
+Order RetrieveOrders::get_normal_order() {
+    if (!normal_orders.empty()) {
+        Order next_order = normal_orders.front();
         return next_order;
     } 
     else 
@@ -252,7 +332,7 @@ void RetrieveOrders::log_tray_poses(const Order& current_order)
                 pose.orientation.z,
                 pose.orientation.w
             );
-            
+
             RCLCPP_INFO(this->get_logger(), "   -Parts:");
         }
 
@@ -288,6 +368,8 @@ void RetrieveOrders::log_bin_parts(const Order& current_order)
                 RCLCPP_INFO(this->get_logger(), "    - [%.3f, %.3f, %.3f] [%.1f, %.1f, %.1f, %.1f]",
                             bin_part.position.x, bin_part.position.y, bin_part.position.z,
                             bin_part.orientation.x, bin_part.orientation.y, bin_part.orientation.z, bin_part.orientation.w);
+
+                // simulate order complete 
 
                 break;
             }

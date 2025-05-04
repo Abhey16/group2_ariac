@@ -135,6 +135,8 @@ public:
      */
     std::tuple<double, double, double> euler_from_quaternion(const geometry_msgs::msg::Quaternion &q);
 
+    geometry_msgs::msg::Quaternion get_quat_msg(double x, double y, double z, double w);
+
 private:
     /// Subscription to right RGB camera image
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr kt_right_sub_;

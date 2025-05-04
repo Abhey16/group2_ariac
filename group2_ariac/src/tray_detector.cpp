@@ -72,7 +72,8 @@ void TrayDetector::tray_pose(cv::Mat input_img, std::string win_name)
     std::vector<std::vector<cv::Point2f>> corners;
     cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_4X4_1000);
     cv::aruco::detectMarkers(input_img, dictionary, corners, ids);
-
+    
+    // if at least one marker detected
     if (ids.size() > 0)
     {
         cv::aruco::drawDetectedMarkers(imageCopy, corners, ids);
@@ -125,33 +126,39 @@ void TrayDetector::tray_pose(cv::Mat input_img, std::string win_name)
                 tray_msg_.tray_poses.push_back(KitTray);
             }
 
-            // // Log tray pose (translation + quaternion)
-            // RCLCPP_INFO(this->get_logger(), "##############################################");
+            // Log tray pose (translation + quaternion)
+            RCLCPP_INFO(this->get_logger(), "##############################################");
 
-            // RCLCPP_INFO(this->get_logger(), "Tray %d : [%.4f %.4f %.4f] [%.4f %.4f %.4f %.4f]", ids[i], tvecs[i][0], tvecs[i][1], tvecs[i][2], q.x, q.y, q.z, q.w);
+            RCLCPP_INFO(this->get_logger(), "Tray %d : [%.4f %.4f %.4f] [%.4f %.4f %.4f %.4f]", ids[i], tvecs[i][0], tvecs[i][1], tvecs[i][2], q.x, q.y, q.z, q.w);
 
-            // // // getting the part in world coordinate frame
-            // // KDL::Frame kdl_camera_world;
+            // getting the part in world coordinate frame
+            KDL::Frame kdl_camera_world;
 
-            // // if (ids[i]==1 or ids[i]==2)
-            // //     {
-            // //         KDL::Frame kdl_camera_world(
-            // //             TrayDetector::ros_quaternion_to_kdl_rotation(TrayDetector::euler_to_quaternions(3.14, 3.14/2, 3.14/2)),
-            // //             KDL::Vector(-1.3, -5.8, 1.8)
-            // //         );
-            // //         TrayDetector::part_world(TrayDetector::cv_to_ros_quaternions(q), tvecs[i][0], tvecs[i][1], tvecs[i][2], kdl_camera_world);
+            // kts1 Tray Pose
+            if (ids[i]==1 or ids[i]==2)
+                {   
+                    // camera_world - constructor
+                    KDL::Frame kdl_camera_world(
+                        TrayDetector::ros_quaternion_to_kdl_rotation(TrayDetector::euler_to_quaternions(3.14, 3.14/2, 3.14/2)),
+                        KDL::Vector(-1.3, -5.8, 1.8)
+                    );
 
-            // //     }
-            // // else
-            // //     {
-            // //         KDL::Frame kdl_camera_world(
-            // //             TrayDetector::ros_quaternion_to_kdl_rotation(TrayDetector::euler_to_quaternions(3.14, 3.14/2, - 3.14/2)),
-            // //             KDL::Vector(-1.3, 5.8, 1.8)
-            // //         );
-            // //         TrayDetector::part_world(TrayDetector::cv_to_ros_quaternions(q), tvecs[i][0], tvecs[i][1], tvecs[i][2], kdl_camera_world);
-            // //     }
+                    TrayDetector::part_world(TrayDetector::cv_to_ros_quaternions(q), tvecs[i][0], tvecs[i][1], tvecs[i][2], kdl_camera_world);
 
-            // RCLCPP_INFO(this->get_logger(), "##############################################");
+                }
+
+            // kts2 Tray Pose
+            else
+                {
+                    KDL::Frame kdl_camera_world(    // optical_frame_camera - constructor
+                        TrayDetector::ros_quaternion_to_kdl_rotation(TrayDetector::euler_to_quaternions(3.14, 3.14/2, - 3.14/2)),
+                        KDL::Vector(-1.3, 5.8, 1.8)
+                    );
+
+                    TrayDetector::part_world(TrayDetector::cv_to_ros_quaternions(q), tvecs[i][0], tvecs[i][1], tvecs[i][2], kdl_camera_world);
+                }
+
+            RCLCPP_INFO(this->get_logger(), "##############################################");
         }
     }
 
@@ -162,14 +169,20 @@ void TrayDetector::tray_pose(cv::Mat input_img, std::string win_name)
 void TrayDetector::part_world(const geometry_msgs::msg::Quaternion &q, const double &x, const double &y, const double &z, const KDL::Frame &kdl_camera_world)
 {
     // Convert poses into kdl frames
-    // part_camera - constructor
-    KDL::Frame kdl_part_camera(
+    // part_optical_frame - constructor
+    KDL::Frame kdl_part_optical_frame(
         TrayDetector::ros_quaternion_to_kdl_rotation(q),
         KDL::Vector(x, y, z));
 
+    // optical_frame_camera - constructor
+    KDL::Frame kdl_optical_frame_camera(
+        TrayDetector::ros_quaternion_to_kdl_rotation(TrayDetector::get_quat_msg(-0.5,0.5,-0.5,0.5)),
+        KDL::Vector(0,0,0)
+    );
+
     // Compute part - world tranformation
-    KDL::Frame kdl_part_world = kdl_part_camera * kdl_camera_world;
-    // KDL::Frame kdl_part_world = kdl_camera_world*kdl_part_camera;
+
+    KDL::Frame kdl_part_world = kdl_camera_world*kdl_optical_frame_camera*kdl_part_optical_frame;
 
     // Convert KDL back tp pose message
     geometry_msgs::msg::Pose pose;
@@ -232,6 +245,17 @@ geometry_msgs::msg::Quaternion TrayDetector::cv_to_ros_quaternions(cv::Quatd q)
     quat.w = q.w;
 
     return quat;
+}
+
+// Helper function to convert given Quaternion to geometry_msgs::msg::Quaternion
+geometry_msgs::msg::Quaternion TrayDetector::get_quat_msg(double x, double y, double z, double w)
+{
+    geometry_msgs::msg::Quaternion q;
+    q.x = x;
+    q.y = y;
+    q.z = z;
+    q.w = w;
+    return q;
 }
 
 // Helper function to convert geometry_msgs::msg::Quaternion into Euler angles

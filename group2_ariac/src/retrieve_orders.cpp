@@ -134,7 +134,7 @@ void RetrieveOrders::order_processing_callback()
             // get the tray pose from subscriber
             // if (tray_pose_received_ && bin_parts_received_)
             if (!latest_tray_pose_.tray_poses.empty()) {
-                RetrieveOrders::log_tray_poses(current_order);
+                RetrieveOrders::get_tray_poses(current_order);
             } 
             else 
             {
@@ -145,7 +145,7 @@ void RetrieveOrders::order_processing_callback()
 
             if (!bin_parts_.parts.empty())
             {
-                RetrieveOrders::log_bin_parts(current_order);
+                RetrieveOrders::get_bin_parts(current_order);
             }
             else
             {   
@@ -154,7 +154,7 @@ void RetrieveOrders::order_processing_callback()
 
             if (!conveyor_parts_.parts.empty())
             {
-                RetrieveOrders::log_conveyor_parts(current_order);
+                RetrieveOrders::get_conveyor_parts(current_order);
             }
             else
             {   
@@ -162,6 +162,10 @@ void RetrieveOrders::order_processing_callback()
             }
 
             // simulating the order is completed
+
+            // processing the task
+            task_processing();
+
             pop_priority_order();
             ongoing_order_ = false;
             
@@ -181,7 +185,7 @@ void RetrieveOrders::order_processing_callback()
             
             // RCLCPP_INFO(this->get_logger(), "tray_pose_received_ : %d", !latest_tray_pose_.tray_poses.empty());
             if (!latest_tray_pose_.tray_poses.empty()) {
-                RetrieveOrders::log_tray_poses(current_order);
+                RetrieveOrders::get_tray_poses(current_order);
             } 
             else 
             {
@@ -191,7 +195,7 @@ void RetrieveOrders::order_processing_callback()
             // RCLCPP_INFO(this->get_logger(), "tray_pose_received_ : %d",!bin_parts_.parts.empty());
             if (!bin_parts_.parts.empty())
             {
-                RetrieveOrders::log_bin_parts(current_order);
+                RetrieveOrders::get_bin_parts(current_order);
             }
             else
             {   
@@ -201,7 +205,7 @@ void RetrieveOrders::order_processing_callback()
             // RCLCPP_INFO(this->get_logger(), "conveyor_parts_received_ : %d", !conveyor_parts_.parts.empty());
             if (!conveyor_parts_.parts.empty())
             {
-                RetrieveOrders::log_conveyor_parts(current_order);
+                RetrieveOrders::get_conveyor_parts(current_order);
             }
             else
             {   
@@ -209,7 +213,12 @@ void RetrieveOrders::order_processing_callback()
             }
 
             // Simulating the order is completed
+
+            // processing the task
+            task_processing();
+
             pop_normal_order();
+
             ongoing_order_ = false;
 
             return;
@@ -309,7 +318,7 @@ void RetrieveOrders::display_order(const Order &order)
     RCLCPP_INFO(this->get_logger(), "*****************************");
 }
 
-void RetrieveOrders::log_tray_poses(const Order& current_order)
+void RetrieveOrders::get_tray_poses(const Order& current_order)
 {
     for (const auto& tray_pose : latest_tray_pose_.tray_poses) 
     {
@@ -321,6 +330,7 @@ void RetrieveOrders::log_tray_poses(const Order& current_order)
         if (tray_id == current_order.get_kitting_task().get_tray_id())
         {
 
+            // Display the tray poses recieved
             RCLCPP_INFO(this->get_logger(), 
                 "   -Tray ID %d: [%.4f, %.4f, %.4f][%.4f, %.4f, %.4f, %.4f]",
                 tray_id,
@@ -333,6 +343,12 @@ void RetrieveOrders::log_tray_poses(const Order& current_order)
                 pose.orientation.w
             );
 
+            // Creating Task object
+            Task object(pose);
+
+            // pushing it into a queue
+            task_queue.push(object);
+
             RCLCPP_INFO(this->get_logger(), "   -Parts:");
         }
 
@@ -344,7 +360,7 @@ void RetrieveOrders::log_tray_poses(const Order& current_order)
     }
 } 
 
-void RetrieveOrders::log_bin_parts(const Order& current_order)
+void RetrieveOrders::get_bin_parts(const Order& current_order)
 {   
     for ( const auto& bin_part : bin_parts_.parts)
     {   
@@ -358,10 +374,7 @@ void RetrieveOrders::log_bin_parts(const Order& current_order)
 
             if (type == part.get_part().get_type().c_str() && color == part.get_part().get_color().c_str())
             {   
-                
-                // RCLCPP_INFO(this->get_logger(), "       - %s %s",
-                // part.get_part().get_color().c_str(),
-                // part.get_part().get_type().c_str());
+                // Display the detected bin parts
 
                 RCLCPP_INFO(this->get_logger(), "  - %s %s:", bin_part.color.c_str(), bin_part.type.c_str());
                 RCLCPP_INFO(this->get_logger(), "    - Location: %s", bin_part.location.c_str());
@@ -369,7 +382,11 @@ void RetrieveOrders::log_bin_parts(const Order& current_order)
                             bin_part.position.x, bin_part.position.y, bin_part.position.z,
                             bin_part.orientation.x, bin_part.orientation.y, bin_part.orientation.z, bin_part.orientation.w);
 
-                // simulate order complete 
+                // Creating Task object
+                Task object(parts_pose_to_geometry(bin_part));
+
+                // pushing it into a queue
+                task_queue.push(object);
 
                 break;
             }
@@ -379,7 +396,7 @@ void RetrieveOrders::log_bin_parts(const Order& current_order)
     }
 }
 
-void RetrieveOrders::log_conveyor_parts(const Order& current_order)
+void RetrieveOrders::get_conveyor_parts(const Order& current_order)
 {   
     for ( const auto& conveyor_part : conveyor_parts_.parts)
     {   
@@ -393,9 +410,7 @@ void RetrieveOrders::log_conveyor_parts(const Order& current_order)
 
             if (type == part.get_part().get_type().c_str() && color == part.get_part().get_color().c_str())
             {   
-                // RCLCPP_INFO(this->get_logger(), "       - %s %s",
-                // part.get_part().get_color().c_str(),
-                // part.get_part().get_type().c_str());
+                // Display conveyor belt parts
 
                 RCLCPP_INFO(this->get_logger(), "  - %s %s:", conveyor_part.color.c_str(), conveyor_part.type.c_str());
                 RCLCPP_INFO(this->get_logger(), "    - Location: %s", conveyor_part.location.c_str());
@@ -412,12 +427,61 @@ void RetrieveOrders::log_conveyor_parts(const Order& current_order)
                             conveyor_part.predicted_pos_2.x, conveyor_part.predicted_pos_2.y, conveyor_part.predicted_pos_2.z,
                             conveyor_part.orientation.x, conveyor_part.orientation.y, conveyor_part.orientation.z, conveyor_part.orientation.w);                            
 
+
+                // Creating Task object
+                Task object(parts_pose_to_geometry(conveyor_part));
+
+                // pushing it into a queue
+                task_queue.push(object);
+
                 break;
             }
         }
         // if (conveyor_part.type == current_order.
     }
 }
+
+void RetrieveOrders::task_processing()
+{
+    while (!task_queue.empty())
+    {
+        Task current_task = task_queue.front();
+
+        // call function to perform set task
+        RCLCPP_INFO(this->get_logger(), 
+            "   -Pose: [%.4f, %.4f, %.4f][%.4f, %.4f, %.4f, %.4f]",
+            current_task.get_pose().position.x,
+            current_task.get_pose().position.y,
+            current_task.get_pose().position.z,
+            current_task.get_pose().orientation.x,
+            current_task.get_pose().orientation.y,
+            current_task.get_pose().orientation.z,
+            current_task.get_pose().orientation.w
+            );
+            
+        RCLCPP_INFO(this->get_logger(), "task poped");
+
+        task_queue.pop();
+    }
+}
+
+// Helper function to convert parts pose to geometry_msgs::msg::Pose
+geometry_msgs::msg::Pose RetrieveOrders::parts_pose_to_geometry(const group2_msgs::msg::Part &part_pose)
+{
+    geometry_msgs::msg::Pose pose;
+
+    pose.position.x = part_pose.position.x;
+    pose.position.y = part_pose.position.y;
+    pose.position.z = part_pose.position.z;
+    pose.orientation.x = part_pose.orientation.x;
+    pose.orientation.y = part_pose.orientation.y;
+    pose.orientation.z = part_pose.orientation.z;
+    pose.orientation.w = part_pose.orientation.w;
+
+    return pose;
+}
+
+
 
 // Main function to initialize ROS node and start spinning
 int main(int argc, char **argv)

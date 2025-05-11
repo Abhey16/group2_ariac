@@ -482,6 +482,30 @@ private:
     CombinedTask combined_task;
 };
 
+class Task
+{
+    public:
+        Task(const geometry_msgs::msg::Pose &pose)
+        {
+            object_pose = pose;
+        }
+
+        // move
+
+        // pick
+
+        // place
+
+        // function to perform above in sequence
+
+        const geometry_msgs::msg::Pose &get_pose() const {return object_pose;}
+        
+    private:
+        geometry_msgs::msg::Pose object_pose{};
+
+};
+
+
  /**
   * @class RetrieveOrders
   * @brief A ROS 2 node for retrieving and managing orders.
@@ -517,7 +541,7 @@ public:
 
         // Create the timer callback function
         timer_ = this->create_wall_timer(
-            std::chrono::seconds(2),  // every 2 seconds
+            std::chrono::seconds(5),  // every 5 seconds
             std::bind(&RetrieveOrders::order_processing_callback, this));
 
     }
@@ -556,11 +580,15 @@ public:
 
     Order get_normal_order();
 
-    void log_tray_poses(const Order& current_order);
+    void get_tray_poses(const Order& current_order);
 
-    void log_bin_parts(const Order& current_order);
+    void get_bin_parts(const Order& current_order);
 
-    void log_conveyor_parts(const Order& current_order);    
+    void get_conveyor_parts(const Order& current_order);
+    
+    geometry_msgs::msg::Pose parts_pose_to_geometry(const group2_msgs::msg::Part &part_pose);
+
+    void task_processing();
 
 private:
     // order_subscriber_
@@ -578,6 +606,9 @@ private:
 
     ///< Queue storing high priority orders.
     std::queue<Order> priority_orders;
+
+    // Queue storing the task for the bot
+    std::queue<Task> task_queue;
     
     // timer callback
     rclcpp::TimerBase::SharedPtr timer_;

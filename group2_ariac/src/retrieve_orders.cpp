@@ -344,7 +344,7 @@ void RetrieveOrders::get_tray_poses(const Order& current_order)
             );
 
             // Creating Task object
-            Task object(pose);
+            Task object("tray",pose);
 
             // pushing it into a queue
             task_queue.push(object);
@@ -383,7 +383,7 @@ void RetrieveOrders::get_bin_parts(const Order& current_order)
                             bin_part.orientation.x, bin_part.orientation.y, bin_part.orientation.z, bin_part.orientation.w);
 
                 // Creating Task object
-                Task object(parts_pose_to_geometry(bin_part));
+                Task object("bin",parts_pose_to_geometry(bin_part));
 
                 // pushing it into a queue
                 task_queue.push(object);
@@ -429,7 +429,7 @@ void RetrieveOrders::get_conveyor_parts(const Order& current_order)
 
 
                 // Creating Task object
-                Task object(parts_pose_to_geometry(conveyor_part));
+                Task object("conveyor",parts_pose_to_geometry(conveyor_part));
 
                 // pushing it into a queue
                 task_queue.push(object);
@@ -447,7 +447,7 @@ void RetrieveOrders::task_processing()
     {
         Task current_task = task_queue.front();
 
-        // call function to perform set task
+        // call function to perform set task for every object
         RCLCPP_INFO(this->get_logger(), 
             "   -Pose: [%.4f, %.4f, %.4f][%.4f, %.4f, %.4f, %.4f]",
             current_task.get_pose().position.x,
@@ -458,6 +458,16 @@ void RetrieveOrders::task_processing()
             current_task.get_pose().orientation.z,
             current_task.get_pose().orientation.w
             );
+
+        move_it_pose(current_task.get_type(),current_task.get_pose());
+        
+        // move_it_pose();
+            
+        // call move method
+
+        // call pick method
+
+        // call place method
             
         RCLCPP_INFO(this->get_logger(), "task poped");
 
@@ -480,6 +490,43 @@ geometry_msgs::msg::Pose RetrieveOrders::parts_pose_to_geometry(const group2_msg
 
     return pose;
 }
+
+void RetrieveOrders::move_it_pose(std::string type,geometry_msgs::msg::Pose pose)
+{
+    while (!move_it_client_->wait_for_service(std::chrono::seconds(1)))
+    {
+        RCLCPP_WARN(this->get_logger(), "Waiting for the server...");
+    }
+
+    auto request = std::make_shared<group2_msgs::srv::Pose::Request>();
+    request->type = type;
+    request->pose = pose;
+    
+    auto result = move_it_client_->async_send_request(
+            request, std::bind(&RetrieveOrders::callback_move_it_pose, this, std::placeholders::_1));
+
+    
+    // auto result = move_it_client_->async_send_request(request);
+
+    // result.wait();
+
+    // if (result.get()->status)
+    //     {
+    //         RCLCPP_INFO(this->get_logger(), "Service successful");
+    //     }
+    // else
+    //     {
+    //         RCLCPP_INFO(this->get_logger(), "Service unsuccessful");
+    //     }
+
+}
+
+void RetrieveOrders::callback_move_it_pose(rclcpp::Client<group2_msgs::srv::Pose>::SharedFuture future)
+{
+    auto response = future.get();
+    RCLCPP_INFO(this->get_logger(), "Response : %d", response->status);
+}
+
 
 
 

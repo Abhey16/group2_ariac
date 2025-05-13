@@ -39,6 +39,9 @@ ament_target_dependencies(start_competition_node rclcpp std_srvs ariac_msgs)
 add_executable(retrieve_orders src/retrieve_orders.cpp)
 ament_target_dependencies(retrieve_orders rclcpp ariac_msgs group2_msgs)
 
+add_executable(server src/test_server.cpp)
+ament_target_dependencies(server rclcpp ariac_msgs group2_msgs)
+
 add_executable(ship_orders src/ship_orders.cpp)
 ament_target_dependencies(ship_orders rclcpp ariac_msgs std_srvs)
 
@@ -60,6 +63,7 @@ ament_target_dependencies(conveyor_tracker_node rclcpp ariac_msgs sensor_msgs cv
 install(TARGETS
         start_competition_node
         retrieve_orders
+        server
         ship_orders
         complete_orders
         end_competition_node

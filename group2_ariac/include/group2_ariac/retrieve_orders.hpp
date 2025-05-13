@@ -20,7 +20,8 @@
 #include "geometry_msgs/msg/quaternion.hpp"
 #include "group2_msgs/msg/part.hpp"
 #include "group2_msgs/msg/part_list.hpp"
- 
+#include "group2_msgs/srv/pose.hpp"
+
  /**
   * @class Part
   * @brief Represents a part with a specific color and type.
@@ -485,8 +486,9 @@ private:
 class Task
 {
     public:
-        Task(const geometry_msgs::msg::Pose &pose)
-        {
+        Task(const std::string type, const geometry_msgs::msg::Pose &pose)
+        {   
+            object_type = type;
             object_pose = pose;
         }
 
@@ -499,8 +501,10 @@ class Task
         // function to perform above in sequence
 
         const geometry_msgs::msg::Pose &get_pose() const {return object_pose;}
+        const std::string &get_type() const {return object_type;}
         
     private:
+        std::string object_type;
         geometry_msgs::msg::Pose object_pose{};
 
 };
@@ -543,6 +547,8 @@ public:
         timer_ = this->create_wall_timer(
             std::chrono::seconds(5),  // every 5 seconds
             std::bind(&RetrieveOrders::order_processing_callback, this));
+        
+        move_it_client_ = this->create_client<group2_msgs::srv::Pose>("move_it_pose");
 
     }
 
@@ -590,6 +596,10 @@ public:
 
     void task_processing();
 
+    void move_it_pose(std::string type,geometry_msgs::msg::Pose pose);
+
+    void callback_move_it_pose(rclcpp::Client<group2_msgs::srv::Pose>::SharedFuture future);
+
 private:
     // order_subscriber_
     rclcpp::Subscription<ariac_msgs::msg::Order>::SharedPtr order_subscriber_;
@@ -630,4 +640,7 @@ private:
     bool ongoing_order_ = false;
 
     bool current_priority = false;
+
+    rclcpp::Client<group2_msgs::srv::Pose>::SharedPtr move_it_client_;
+
 };

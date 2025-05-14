@@ -180,9 +180,9 @@ def launch_setup(context, *args, **kwargs):
         retrieve_orders_node,
         tray_detector,
         bin_parts_detector,
-        # ship_orders,
-        # complete_orders,
-        # end_competition_node,
+        ship_orders,
+        complete_orders,
+        end_competition_node,
         # conveyor_tracker_node,
         # server_node,
     ]

@@ -86,38 +86,38 @@ void RetrieveOrders::tray_pose_callback(const ariac_msgs::msg::AdvancedLogicalCa
 
 void RetrieveOrders::order_processing_callback()
 {   
-    // if the current process needs to stopped
-    bool stop_flag = false;
+    // // if the current process needs to stopped
+    // bool stop_flag = false;
 
-    RCLCPP_INFO(this->get_logger(), "******Status of Ongoing Order: %d *****", ongoing_order_);
+    // RCLCPP_INFO(this->get_logger(), "******Status of Ongoing Order: %d *****", ongoing_order_);
 
-    // check if there is an ongoing order
-    if (ongoing_order_)
-    {   
-        // check if the ongoing_order is not priority
-        if(!current_priority)
-        {
-            // check if the next order is priority, stop ongoing order and update it
-            if (!priority_orders.empty())
-            {
-                stop_flag = true;
-                RCLCPP_INFO(this->get_logger(), "*********Status: Current Order is stopped*******");
-            }
+    // // check if there is an ongoing order
+    // if (ongoing_order_)
+    // {   
+    //     // check if the ongoing_order is not priority
+    //     if(!current_priority)
+    //     {
+    //         // check if the next order is priority, stop ongoing order and update it
+    //         if (!priority_orders.empty())
+    //         {
+    //             stop_flag = true;
+    //             RCLCPP_INFO(this->get_logger(), "*********Status: Current Order is stopped*******");
+    //         }
 
-            // if ongoing order is not a priority & next order is not a priority, dont process order
-            else
-            {
-                return;
-            }
+    //         // if ongoing order is not a priority & next order is not a priority, dont process order
+    //         else
+    //         {
+    //             return;
+    //         }
     
-        }
+    //     }
 
-        // if ongoing order is a priority, dont process next order
-        else
-        {
-            return;
-        }
-    }
+    //     // if ongoing order is a priority, dont process next order
+    //     else
+    //     {
+    //         return;
+    //     }
+    // }
 
     if (!priority_orders.empty())
     {
@@ -167,13 +167,13 @@ void RetrieveOrders::order_processing_callback()
             task_processing();
 
             pop_priority_order();
-            ongoing_order_ = false;
+            // ongoing_order_ = false;
             
             return;
         }
     }
     
-    else
+    else if (priority_orders.empty())
     {
         // Pop from normal queue if priority was empty
         Order current_order = get_normal_order();
@@ -219,10 +219,16 @@ void RetrieveOrders::order_processing_callback()
 
             pop_normal_order();
 
-            ongoing_order_ = false;
+            // ongoing_order_ = false;
 
             return;
         }
+
+    // else if (!task_queue.empty())
+    // {
+    //     task_processing();
+    // }
+
     }
 
     // If both were empty
@@ -373,6 +379,7 @@ void RetrieveOrders::get_bin_parts(const Order& current_order)
             std::string color = bin_part.color;
             std::transform(color.begin(), color.end(), color.begin(), ::toupper);
 
+            int32_t agv_number = current_order.get_kitting_task().get_agv_number();
             
 
             if (type == part.get_part().get_type().c_str() && color == part.get_part().get_color().c_str())
@@ -389,7 +396,7 @@ void RetrieveOrders::get_bin_parts(const Order& current_order)
                 std::string quadrant_number = part.get_quadrant();
 
                 // Creating Task object
-                Task object(type,parts_pose_to_geometry(bin_part),quadrant_number);
+                Task object(type,parts_pose_to_geometry(bin_part),quadrant_number,agv_number);
 
                 // pushing it into a queue
                 task_queue.push(object);
@@ -414,6 +421,8 @@ void RetrieveOrders::get_conveyor_parts(const Order& current_order)
             std::string color = conveyor_part.color;
             std::transform(color.begin(), color.end(), color.begin(), ::toupper);
 
+            int32_t agv_number = current_order.get_kitting_task().get_agv_number();
+
             // std::string quadrant_number = part.get_quadrant();
 
             if (type == part.get_part().get_type().c_str() && color == part.get_part().get_color().c_str())
@@ -437,7 +446,7 @@ void RetrieveOrders::get_conveyor_parts(const Order& current_order)
 
                 std::string quadrant_number = part.get_quadrant();
                 // Creating Task object
-                Task object(type,parts_pose_to_geometry(conveyor_part),quadrant_number);
+                Task object(type,parts_pose_to_geometry(conveyor_part),quadrant_number,agv_number);
 
                 // pushing it into a queue
                 task_queue.push(object);
@@ -451,9 +460,12 @@ void RetrieveOrders::get_conveyor_parts(const Order& current_order)
 
 void RetrieveOrders::task_processing()
 {
-    while (!task_queue.empty())
+    // while (!task_queue.empty())
+    if (!task_queue.empty() && !ongoing_task_)
     {
         Task current_task = task_queue.front();
+
+        ongoing_task_ = true;
 
         // call function to perform set task for every object
         RCLCPP_INFO(this->get_logger(), 
@@ -471,7 +483,7 @@ void RetrieveOrders::task_processing()
             move_it_pose(current_task.get_type(),current_task.get_pose(),current_task.get_agv());
         
         else
-            move_it_pose(current_task.get_type(),current_task.get_pose(),static_cast<std::string>(current_task.get_quadrant()));
+            move_it_pose(current_task.get_type(),current_task.get_pose(),static_cast<std::string>(current_task.get_quadrant()),current_task.get_agv());
         
         // move_it_pose();
             
@@ -481,10 +493,28 @@ void RetrieveOrders::task_processing()
 
         // call place method
             
-        RCLCPP_INFO(this->get_logger(), "task poped");
+        // RCLCPP_INFO(this->get_logger(), "task poped");
 
-        task_queue.pop();
+        // task_queue.pop();
     }
+
+    else if (task_queue.empty())
+    {
+        RCLCPP_INFO(this->get_logger(), "All tasks for the current order completed.");
+
+        // Pop the order from the queue after all tasks are processed
+        if (current_priority)
+        {
+            pop_priority_order();
+            RCLCPP_INFO(this->get_logger(), "Priority order completed and popped.");
+        }
+        else
+        {
+            pop_normal_order();
+            RCLCPP_INFO(this->get_logger(), "Normal order completed and popped.");
+        }
+    }
+
 }
 
 // Helper function to convert parts pose to geometry_msgs::msg::Pose
@@ -521,7 +551,7 @@ void RetrieveOrders::move_it_pose(std::string type,geometry_msgs::msg::Pose pose
 
 }
 
-void RetrieveOrders::move_it_pose(std::string type,geometry_msgs::msg::Pose pose, std::string quadrant)
+void RetrieveOrders::move_it_pose(std::string type,geometry_msgs::msg::Pose pose, std::string quadrant,int32_t agv)
 {
     while (!move_it_client_->wait_for_service(std::chrono::seconds(1)))
     {
@@ -532,6 +562,7 @@ void RetrieveOrders::move_it_pose(std::string type,geometry_msgs::msg::Pose pose
     request->type = type;
     request->pose = pose;
     request->quadrant = quadrant;
+    request->agv_number = agv;
 
     auto result = move_it_client_->async_send_request(
             request, std::bind(&RetrieveOrders::callback_move_it_pose, this, std::placeholders::_1));
@@ -544,6 +575,19 @@ void RetrieveOrders::callback_move_it_pose(rclcpp::Client<group2_msgs::srv::Pose
 {
     auto response = future.get();
     RCLCPP_INFO(this->get_logger(), "Response : %d", response->status);
+
+    if (response->status && !task_queue.empty())
+    {
+        ongoing_task_ = false;
+        task_queue.pop();
+        task_processing();
+    }
+    // failed try again
+    else
+    {
+        ongoing_task_= false;
+        task_processing();
+    }
 }
 
 

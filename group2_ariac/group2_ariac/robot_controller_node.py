@@ -1122,7 +1122,7 @@ class RobotController(Node):
                 build_pose(
                     agv_tray_pose.position.x + offset_x,
                     agv_tray_pose.position.y + offset_y,
-                    agv_tray_pose.position.z + 0.05,  # Final placement position
+                    agv_tray_pose.position.z + 0.15,  # Final placement position
                     quaternion_from_euler(0.0, pi, 0.0),
                 )
             )
@@ -2132,7 +2132,7 @@ class RobotController(Node):
                 build_pose(
                     agv_tray_pose.position.x + offset_x,
                     agv_tray_pose.position.y + offset_y,
-                    agv_tray_pose.position.z + 0.2,  # First move above
+                    agv_tray_pose.position.z + 0.3,  # First move above
                     quaternion_from_euler(0.0, pi, 0.0),
                 )
             )
@@ -2140,21 +2140,35 @@ class RobotController(Node):
             if not self._move_floor_robot_cartesian(waypoints, 0.3, 0.3, True):
                 self.get_logger().error("Failed to move above drop position")
                 return False
+            
+            # waypoints = []
+            # waypoints.append(
+            #     build_pose(
+            #         agv_tray_pose.position.x + offset_x,
+            #         agv_tray_pose.position.y + offset_y,
+            #         agv_tray_pose.position.z + 0.17,  # First move above
+            #         quaternion_from_euler(0.0, pi, 0.0),
+            #     )
+            # )
 
-            # Move down to place the part
-            waypoints = []
-            waypoints.append(
-                build_pose(
-                    agv_tray_pose.position.x + offset_x,
-                    agv_tray_pose.position.y + offset_y,
-                    agv_tray_pose.position.z + 0.05,  # Final placement position
-                    quaternion_from_euler(0.0, pi, 0.0),
-                )
-            )
+            # if not self._move_floor_robot_cartesian(waypoints, 0.3, 0.3, True):
+            #     self.get_logger().error("Failed to move above drop position")
+            #     return False
 
-            if not self._move_floor_robot_cartesian(waypoints, 0.2, 0.2, True):
-                self.get_logger().error("Failed to move to place position")
-                return False
+            # # Move down to place the part
+            # waypoints = []
+            # waypoints.append(
+            #     build_pose(
+            #         agv_tray_pose.position.x + offset_x,
+            #         agv_tray_pose.position.y + offset_y,
+            #         agv_tray_pose.position.z + 0.05,  # Final placement position
+            #         quaternion_from_euler(0.0, pi, 0.0),
+            #     )
+            # )
+
+            # if not self._move_floor_robot_cartesian(waypoints, 0.2, 0.2, True):
+            #     self.get_logger().error("Failed to move to place position")
+            #     return False
 
             # Release part
             self._set_floor_robot_gripper_state(False)

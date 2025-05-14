@@ -62,6 +62,8 @@ private:
      */
     void lock_tray(int agv_num, int destination);
 
+    void lock_tray();
+
     /**
      * @brief Method to move an AGV
      * 

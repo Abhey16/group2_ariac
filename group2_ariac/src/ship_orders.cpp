@@ -24,6 +24,10 @@ void ShipOrders::order_callback(const ariac_msgs::msg::Order::SharedPtr msg)
         process_timer_ = this->create_wall_timer(
             std::chrono::seconds(35),
             std::bind(&ShipOrders::process_orders, this));
+        
+        // process_timer_ = this->create_wall_timer(
+        //     std::chrono::seconds(35),
+        //     std::bind(&ShipOrders::lock_tray, this);
     }
 }
 
@@ -69,9 +73,15 @@ void ShipOrders::process_next_order()
     lock_tray(agv_num, destination);
 }
 
+void ShipOrders::lock_tray()
+{
+
+}
 // Lock the tray for the current order in place
 void ShipOrders::lock_tray(int agv_num, int destination)
-{
+{   
+    process_timer_->cancel();
+
     // Check if service exists and creates one if necessary
     if (tray_clients_.find(agv_num) == tray_clients_.end()) {
         std::string service_name = "/ariac/agv" + std::to_string(agv_num) + "_lock_tray";

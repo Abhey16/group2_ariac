@@ -77,6 +77,7 @@ install(DIRECTORY
         launch
         config
         resources
+        meshes
         DESTINATION share/${PROJECT_NAME}
         )
 
@@ -88,5 +89,12 @@ install(DIRECTORY
 # Install Python modules
 ament_python_install_package(${PROJECT_NAME} 
   SCRIPTS_DESTINATION lib/${PROJECT_NAME})
+
+install(
+  PROGRAMS
+  # group2_ariac/python_logger_node.py
+  group2_ariac/robot_controller_node.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 ament_package()

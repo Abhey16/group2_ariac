@@ -86,38 +86,38 @@ void RetrieveOrders::tray_pose_callback(const ariac_msgs::msg::AdvancedLogicalCa
 
 void RetrieveOrders::order_processing_callback()
 {   
-    // if the current process needs to stopped
-    bool stop_flag = false;
+    // // if the current process needs to stopped
+    // bool stop_flag = false;
 
-    RCLCPP_INFO(this->get_logger(), "******Status of Ongoing Order: %d *****", ongoing_order_);
+    // RCLCPP_INFO(this->get_logger(), "******Status of Ongoing Order: %d *****", ongoing_order_);
 
-    // check if there is an ongoing order
-    if (ongoing_order_)
-    {   
-        // check if the ongoing_order is not priority
-        if(!current_priority)
-        {
-            // check if the next order is priority, stop ongoing order and update it
-            if (!priority_orders.empty())
-            {
-                stop_flag = true;
-                RCLCPP_INFO(this->get_logger(), "*********Status: Current Order is stopped*******");
-            }
+    // // check if there is an ongoing order
+    // if (ongoing_order_)
+    // {   
+    //     // check if the ongoing_order is not priority
+    //     if(!current_priority)
+    //     {
+    //         // check if the next order is priority, stop ongoing order and update it
+    //         if (!priority_orders.empty())
+    //         {
+    //             stop_flag = true;
+    //             RCLCPP_INFO(this->get_logger(), "*********Status: Current Order is stopped*******");
+    //         }
 
-            // if ongoing order is not a priority & next order is not a priority, dont process order
-            else
-            {
-                return;
-            }
+    //         // if ongoing order is not a priority & next order is not a priority, dont process order
+    //         else
+    //         {
+    //             return;
+    //         }
     
-        }
+    //     }
 
-        // if ongoing order is a priority, dont process next order
-        else
-        {
-            return;
-        }
-    }
+    //     // if ongoing order is a priority, dont process next order
+    //     else
+    //     {
+    //         return;
+    //     }
+    // }
 
     if (!priority_orders.empty())
     {
@@ -167,7 +167,7 @@ void RetrieveOrders::order_processing_callback()
             task_processing();
 
             pop_priority_order();
-            ongoing_order_ = false;
+            // ongoing_order_ = false;
             
             return;
         }
@@ -219,7 +219,7 @@ void RetrieveOrders::order_processing_callback()
 
             pop_normal_order();
 
-            ongoing_order_ = false;
+            // ongoing_order_ = false;
 
             return;
         }
@@ -451,9 +451,12 @@ void RetrieveOrders::get_conveyor_parts(const Order& current_order)
 
 void RetrieveOrders::task_processing()
 {
-    while (!task_queue.empty())
+    // while (!task_queue.empty() && !ongoing_task_)
+    if (!task_queue.empty() && !ongoing_task_)
     {
         Task current_task = task_queue.front();
+
+        ongoing_task_ = true;
 
         // call function to perform set task for every object
         RCLCPP_INFO(this->get_logger(), 
@@ -481,9 +484,26 @@ void RetrieveOrders::task_processing()
 
         // call place method
             
-        RCLCPP_INFO(this->get_logger(), "task poped");
+        // RCLCPP_INFO(this->get_logger(), "task poped");
 
-        task_queue.pop();
+        // task_queue.pop();
+    }
+
+    else if (task_queue.empty())
+    {
+        RCLCPP_INFO(this->get_logger(), "All tasks for the current order completed.");
+
+        // Pop the order from the queue after all tasks are processed
+        if (current_priority)
+        {
+            pop_priority_order();
+            RCLCPP_INFO(this->get_logger(), "Priority order completed and popped.");
+        }
+        else
+        {
+            pop_normal_order();
+            RCLCPP_INFO(this->get_logger(), "Normal order completed and popped.");
+        }
     }
 }
 
@@ -536,7 +556,6 @@ void RetrieveOrders::move_it_pose(std::string type,geometry_msgs::msg::Pose pose
     auto result = move_it_client_->async_send_request(
             request, std::bind(&RetrieveOrders::callback_move_it_pose, this, std::placeholders::_1));
 
-
 }
 
 
@@ -544,9 +563,14 @@ void RetrieveOrders::callback_move_it_pose(rclcpp::Client<group2_msgs::srv::Pose
 {
     auto response = future.get();
     RCLCPP_INFO(this->get_logger(), "Response : %d", response->status);
+
+    if (response->status && !task_queue.empty())
+    {
+        ongoing_task_ = false;
+        task_queue.pop();
+        task_processing();
+    }
 }
-
-
 
 
 // Main function to initialize ROS node and start spinning

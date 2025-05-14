@@ -122,6 +122,12 @@ class RobotController(Node):
         PartMsg.REGULATOR: 0.07,
         PartMsg.SENSOR: 0.07,
     }
+    _part_heights_request = {    
+        "battery": 0.04,
+        "pump": 0.12,
+        "regulator": 0.07,
+        "sensor": 0.07,        
+    }
 
     _rail_positions = {
         "agv1": -4.5,
@@ -546,17 +552,10 @@ class RobotController(Node):
             success = self._pick_place_tray_request(request)
             self._operation_started = True           
         
-        if request.type == "battery" or request.type == "pump" or request.type == "regulator" or request.type == "sensor":
+        if request.type.lower() in ["battery", "pump", "regulator", "sensor"]:
             FancyLog.info(self.get_logger(), "Executing tray pick and place operation")
-            success = self._pick_place_part_request_operation(request)
+            success = self._pick_place_part_request(request)
             self._operation_started = True 
-            
-        if request.type == "pump" or request.type == "sensor" or request.type == "battery":
-            success = self._pick_place_part_request(request)
-            self._operation_started = True     
-        if request.type == "regulator":
-            success = self._pick_place_part_request(request)
-            self._operation_started = True
         
         # Set response
         response.status = success
@@ -578,26 +577,38 @@ class RobotController(Node):
         Returns:
             bool: True if operation completed successfully, False otherwise
         """
-
         # Move floor robot to safe starting position
         # self._move_floor_robot_to_joint_position("home")
 
         # Ensure AGV is at kitting station and has a tray
         agv_num = request.agv_number
+        request.type = request.type.lower()
+        # Floor robot parts
+        if request.type.lower() == "pump" or request.type.lower() == "sensor" or request.type.lower() == "battery":
+            # Pick the part
+            if not self._floor_robot_pick_bin_part_request(request):
+                self.get_logger().error("Failed to pick part from bins")
+                return False 
+        
+        # Ceiling robot parts
+        if request.type.lower() == "regulator":
+            # Pick the part
+            if not self._ceiling_robot_pick_bin_part_request(request):
+                self.get_logger().error("Failed to pick part from bins")
+                return False 
 
-        # Select a random part to pick up
-        part_to_pick = PartMsg()
-
-        # Pick the part
-        if not self._floor_robot_pick_bin_part_request(request, part_to_pick):
-            self.get_logger().error("Failed to pick part from bins")
-            return False
-
-        # Place on a random quadrant
+        # Target quadrant
         quadrant = request.quadrant
         self.get_logger().info(f"Placing part in quadrant {quadrant}")
 
-        success = self._floor_robot_place_part_on_kit_tray(agv_num, quadrant)
+        quadrant_str = request.quadrant.upper().replace("QUADRANT", "")
+        try:
+            quadrant = int(quadrant_str)
+        except ValueError:
+            self.get_logger().error(f"Invalid quadrant format: {request.quadrant}")
+            return  # or raise, or set a default
+
+        success = self._floor_robot_place_part_on_kit_tray_request(request, agv_num, quadrant)
 
         if success:
             self.get_logger().info("Successfully placed part on tray")
@@ -607,12 +618,146 @@ class RobotController(Node):
         # Return to home position
         self._move_floor_robot_to_joint_position("home")
 
-        # End competition when done
-        self._end_competition()
-
         return success
 
-    def _floor_robot_pick_bin_part_request(self, request, part_to_pick: PartMsg):
+    def _floor_robot_pick_bin_part_request(self, request):
+        """
+        Pick a part from a bin using optimized Cartesian motion planning.
+
+        This function implements a complete part picking process:
+        1. PART DETECTION - Locates the specified part in bins using camera data
+        2. GRIPPER PREPARATION - Changes to part gripper if needed
+        3. APPROACH - Moves to bin and positions above part
+        4. PICKING - Moves down to grasp position and enables gripper
+        5. RETREAT - Lifts part and returns to safe bin position
+        6. SCENE UPDATE - Updates planning scene with attached part
+
+        Args:
+            part_to_pick (PartMsg): Part type and color to pick
+
+        Returns:
+            bool: True if pick operation succeeded, False otherwise
+        """
+        # Skip unnecessary debug logging for faster operation
+        self.get_logger().info(
+            f"Picking {request.type}"
+        )
+
+        # Initialize variables
+        part_pose = request.pose
+        bin_side = "left_bins" if part_pose.position.y < 0 else "right_bins"
+
+        # GRIPPER PREPARATION PHASE - Skip if already using the right gripper
+        if self._floor_robot_gripper_state.type != "part_gripper":
+            # Determine which tool changer station to use
+            station = "kts1" if part_pose.position.y < 0 else "kts2"
+
+            # Move to the tool changer and change gripper
+            self._move_floor_robot_to_joint_position(f"floor_{station}_js_")
+            self._floor_robot_change_gripper(station, "parts")
+
+        # APPROACH PHASE - Faster approach
+        # Move to the bin with the part
+        self._move_floor_robot_to_joint_position(bin_side)
+
+        # Calculate the proper orientation for the robot's gripper to pick up a part.
+
+        # This line extracts the yaw angle (rotation around the z-axis) from the part's orientation.
+        # 1. part_pose.orientation contains a quaternion, which is a 4-element representation of 3D rotation (x, y, z, w)
+        # 2. The function rpy_from_quaternion() converts this quaternion into Euler angles (roll, pitch, yaw)
+        # 3. [2] retrieves the third element of the returned array, which is the yaw angle (rotation around the z-axis)
+        # This yaw angle represents how the part is rotated on the horizontal plane, which is important for properly aligning the gripper.
+        part_rotation = rpy_from_quaternion(part_pose.orientation)[2]
+        # This line creates a new quaternion for the gripper's orientation that will be appropriate for grasping the part.
+        # quaternion_from_euler() converts Euler angles back to a quaternion
+        # Parameters represent:
+        # 1. Roll (0.0): No rotation around x-axis
+        # 2. Pitch (pi): 180° rotation around y-axis, pointing the gripper downward
+        # 3. Yaw (part_rotation): Uses the part's yaw rotation so the gripper aligns with the part
+        gripper_orientation = quaternion_from_euler(0.0, pi, part_rotation)
+
+        # Move above the part - use closer approach to save time
+        # We place the gripper 15 cm above the part.
+        above_pose = build_pose(
+            part_pose.position.x,
+            part_pose.position.y,
+            part_pose.position.z + 0.15,  # Reduced from 0.3 to 0.15
+            gripper_orientation,
+        )
+        # Sets a target pose in Cartesian space
+        # Lets the motion planner (MoveIt) determine the optimal path
+        # The planner will typically find a path that's efficient in joint space, but the goal is specified in Cartesian space
+        # Doesn't give explicit control over the path shape
+        self._move_floor_robot_to_pose(above_pose)
+
+        # PICKING PHASE - Getting closer to the part
+        self.get_logger().info("Moving to grasp position")
+        
+        waypoints = [
+            build_pose(
+                part_pose.position.x,
+                part_pose.position.y,
+                # Optimize height for better first-attempt success
+                part_pose.position.z
+                + RobotController._part_heights_request[request.type.lower()]
+                + 0.005,  # You can adjust this value
+                gripper_orientation,
+            )
+        ]
+        # Enforces a straight-line path in Cartesian space
+        # Gives explicit control over velocity and acceleration
+        # Can specify whether collision checking should be performed
+        # Constraints the motion to follow a specific path, not just reach a goal
+        self._move_floor_robot_cartesian(waypoints, 0.3, 0.3, False)
+
+        # Enable gripper with less waiting
+        self._set_floor_robot_gripper_state(request, True)
+
+        try:
+            self._floor_robot_wait_for_attach(
+                10.0, gripper_orientation
+            )  # Reduced timeout
+        except Error as e:
+            self.get_logger().error(f"Attachment failed: {str(e)}")
+
+            # Quick recovery
+            waypoints = [
+                build_pose(
+                    part_pose.position.x,
+                    part_pose.position.y,
+                    part_pose.position.z + 0.2,
+                    gripper_orientation,
+                )
+            ]
+            self._move_floor_robot_cartesian(waypoints, 0.5, 0.5, False)
+            self._set_floor_robot_gripper_state(request, False)
+            return False
+
+        # RETREAT PHASE - Faster retreat
+        # Quick lift to clear obstacles
+        waypoints = [
+            build_pose(
+                part_pose.position.x,
+                part_pose.position.y,
+                part_pose.position.z + 0.2,
+                gripper_orientation,
+            )
+        ]
+        self._move_floor_robot_cartesian(waypoints, 0.2, 0.2, False)
+
+        # Return to bin position
+        self._move_floor_robot_to_joint_position(bin_side)
+
+        # SCENE UPDATE PHASE - Minimal planning scene updates
+        # Just record the attached part internally for tracking
+        self._floor_robot_attached_part = request
+
+        # Only update planning scene if needed
+        self._attach_model_to_floor_gripper_request(request, part_pose)
+
+        return True
+
+    def _ceiling_robot_pick_bin_part_request(self, request):
         """
         Pick a part from a bin using optimized Cartesian motion planning.
 
@@ -690,7 +835,7 @@ class RobotController(Node):
                 part_pose.position.y,
                 # Optimize height for better first-attempt success
                 part_pose.position.z
-                + RobotController._part_heights[part_to_pick.type]
+                + RobotController._part_heights_request[request.type.lower()]
                 + 0.005,  # You can adjust this value
                 gripper_orientation,
             )
@@ -702,7 +847,7 @@ class RobotController(Node):
         self._move_floor_robot_cartesian(waypoints, 0.3, 0.3, False)
 
         # Enable gripper with less waiting
-        self._set_floor_robot_gripper_state(True)
+        self._set_floor_robot_gripper_state(request, True)
 
         try:
             self._floor_robot_wait_for_attach(
@@ -721,7 +866,7 @@ class RobotController(Node):
                 )
             ]
             self._move_floor_robot_cartesian(waypoints, 0.5, 0.5, False)
-            self._set_floor_robot_gripper_state(False)
+            self._set_floor_robot_gripper_state(request, False)
             return False
 
         # RETREAT PHASE - Faster retreat
@@ -741,14 +886,137 @@ class RobotController(Node):
 
         # SCENE UPDATE PHASE - Minimal planning scene updates
         # Just record the attached part internally for tracking
-        self._floor_robot_attached_part = part_to_pick
+        self._floor_robot_attached_part = request
 
         # Only update planning scene if needed
-        self._attach_model_to_floor_gripper(part_to_pick, part_pose)
+        self._attach_model_to_floor_gripper_request(request, part_pose)
 
         return True
 
-    def _floor_robot_place_part_on_kit_tray_request(self, agv_num, quadrant):
+    def _attach_model_to_floor_gripper_request(self, request, part_pose: Pose):
+        """
+        Attach a part model to the floor robot gripper in the planning scene.
+
+        This function creates a collision object for the part and attaches it
+        to the robot's gripper in the planning scene, enabling collision-aware
+        motion planning with the attached part.
+
+        Args:
+            part_to_pick (PartMsg): Part type and color information
+            part_pose (Pose): Position and orientation of the part
+
+        Returns:
+            bool: True if attachment succeeded, False otherwise
+        """
+        # Create a part name based on its color and type
+        part_name = (
+            request.type
+        )
+
+        # Always track the part internally
+        self._floor_robot_attached_part = request
+
+        # Get the path to the mesh file for the part
+        model_path = self._mesh_file_path + request.type + ".stl"
+
+        if not path.exists(model_path):
+            self.get_logger().error(f"Mesh file not found: {model_path}")
+            return False
+
+        try:
+            # Use a single planning scene operation for consistency
+            with self._planning_scene_monitor.read_write() as scene:
+                # Create the collision object
+                co = CollisionObject()
+                co.id = part_name
+                co.header.frame_id = "world"
+                co.header.stamp = self.get_clock().now().to_msg()
+
+                # Create the mesh
+                with pyassimp.load(model_path) as assimp_scene:
+                    if not assimp_scene.meshes:
+                        self.get_logger().error(f"No meshes found in {model_path}")
+                        return False
+
+                    mesh = Mesh()
+                    # Add triangles
+                    for face in assimp_scene.meshes[0].faces:
+                        triangle = MeshTriangle()
+                        if hasattr(face, "indices"):
+                            if len(face.indices) == 3:
+                                triangle.vertex_indices = [
+                                    face.indices[0],
+                                    face.indices[1],
+                                    face.indices[2],
+                                ]
+                                mesh.triangles.append(triangle)
+                        else:
+                            if len(face) == 3:
+                                triangle.vertex_indices = [face[0], face[1], face[2]]
+                                mesh.triangles.append(triangle)
+
+                    # Add vertices
+                    for vertex in assimp_scene.meshes[0].vertices:
+                        point = Point()
+                        point.x = float(vertex[0])
+                        point.y = float(vertex[1])
+                        point.z = float(vertex[2])
+                        mesh.vertices.append(point)
+
+                # Add the mesh to the collision object
+                co.meshes.append(mesh)
+                co.mesh_poses.append(part_pose)
+                co.operation = CollisionObject.ADD
+
+                # First add to world - this is important!
+                scene.apply_collision_object(co)
+
+                # Then create the attachment
+                aco = AttachedCollisionObject()
+                aco.link_name = "floor_gripper"
+                aco.object = co
+                aco.touch_links = [
+                    "floor_gripper",
+                    "floor_tool0",
+                    "floor_wrist_3_link",
+                    "floor_wrist_2_link",
+                    "floor_wrist_1_link",
+                    "floor_flange",
+                    "floor_ft_frame",
+                ]
+
+                # Update the state
+                scene.current_state.attachBody(
+                    part_name, "floor_gripper", aco.touch_links
+                )
+                scene.current_state.update()
+
+                # Make the attachment visible in the planning scene
+                ps = PlanningScene()
+                ps.is_diff = True
+                ps.robot_state.attached_collision_objects.append(aco)
+
+                # Remove from world collision objects since it's now attached
+                remove_co = CollisionObject()
+                remove_co.id = part_name
+                remove_co.operation = CollisionObject.REMOVE
+                ps.world.collision_objects.append(remove_co)
+
+                # Apply the complete scene update
+                scene.processPlanningSceneMsg(ps)
+
+                self._apply_planning_scene(scene)
+
+            self.get_logger().info(
+                f"Successfully attached {part_name} to floor gripper"
+            )
+            return True
+
+        except Exception as e:
+            self.get_logger().error(f"Error attaching model to gripper: {str(e)}")
+            return False
+
+    def _floor_robot_place_part_on_kit_tray_request(self, request, agv_num, quadrant):
         """
         Place a part on a kit tray on the specified AGV in the given quadrant.
 
@@ -864,7 +1132,7 @@ class RobotController(Node):
                 return False
 
             # Release part
-            self._set_floor_robot_gripper_state(False)
+            self._set_floor_robot_gripper_state(request, False)
             time.sleep(0.5)  # Wait for release
 
             # Move up
@@ -985,7 +1253,8 @@ class RobotController(Node):
             build_pose(
                 tray_pose.position.x,
                 tray_pose.position.y,
-                tray_pose.position.z + 0.5,
+                # tray_pose.position.z + 0.5,
+                0.734989 + 0.5,
                 gripper_orientation,
             )
         )
@@ -995,7 +1264,8 @@ class RobotController(Node):
             build_pose(
                 tray_pose.position.x,
                 tray_pose.position.y,
-                tray_pose.position.z + self._pick_offset,
+                # tray_pose.position.z + self._pick_offset,
+                0.734989 + self._pick_offset,                
                 gripper_orientation,
             )
         ]
@@ -1003,7 +1273,7 @@ class RobotController(Node):
         self._move_floor_robot_cartesian(waypoints, 0.2, 0.2, False)
 
         # Enable gripper and wait for attachment
-        self._set_floor_robot_gripper_state(True)
+        self._set_floor_robot_gripper_state(request, True)
 
         try:
             self._floor_robot_wait_for_attach(30.0, gripper_orientation)
@@ -1050,7 +1320,7 @@ class RobotController(Node):
         self._move_floor_robot_cartesian(waypoints, 0.3, 0.3)
 
         # Release the tray
-        self._set_floor_robot_gripper_state(False)
+        self._set_floor_robot_gripper_state(request, False)
 
         # Lock tray to AGV
         self._lock_agv_tray(agv_num)
@@ -1500,9 +1770,6 @@ class RobotController(Node):
 
         # Return to home position
         self._move_floor_robot_to_joint_position("home")
-
-        # End competition when done
-        self._end_competition()
 
         return success
 
@@ -2043,75 +2310,75 @@ class RobotController(Node):
             )
             return False
 
-    def _competition_state_cb(self, msg: CompetitionStateMsg):
-        """
-        Callback for the /ariac/competition_state topic.
+    # def _competition_state_cb(self, msg: CompetitionStateMsg):
+    #     """
+    #     Callback for the /ariac/competition_state topic.
 
-        This function processes competition state updates, logging state changes
-        and storing the current state for use in decision making.
+    #     This function processes competition state updates, logging state changes
+    #     and storing the current state for use in decision making.
 
-        Args:
-            msg (CompetitionStateMsg): Message containing the current competition state
-        """
-        # Log if competition state has changed
-        if self._competition_state != msg.competition_state:
-            state = RobotController._competition_states[msg.competition_state]
-            self.get_logger().info(
-                f"Competition state is: {state}", throttle_duration_sec=1.0
-            )
+    #     Args:
+    #         msg (CompetitionStateMsg): Message containing the current competition state
+    #     """
+    #     # Log if competition state has changed
+    #     if self._competition_state != msg.competition_state:
+    #         state = RobotController._competition_states[msg.competition_state]
+    #         self.get_logger().info(
+    #             f"Competition state is: {state}", throttle_duration_sec=1.0
+    #         )
 
-        self._competition_state = msg.competition_state
+    #     self._competition_state = msg.competition_state
 
-        # # If competition just started, start the operation
-        # if not self._operation_started and (
-        #     self._competition_state == CompetitionStateMsg.STARTED
-        #     or self._competition_state == CompetitionStateMsg.ORDER_ANNOUNCEMENTS_DONE
-        # ):
-        #     self._start_operation()
-        #     self._operation_started = True
+    #     # # If competition just started, start the operation
+    #     # if not self._operation_started and (
+    #     #     self._competition_state == CompetitionStateMsg.STARTED
+    #     #     or self._competition_state == CompetitionStateMsg.ORDER_ANNOUNCEMENTS_DONE
+    #     # ):
+    #     #     self._start_operation()
+    #     #     self._operation_started = True
 
-    def _end_competition(self):
-        """
-        End the competition using a non-blocking approach.
+    # def _end_competition(self):
+    #     """
+    #     End the competition using a non-blocking approach.
 
-        This function initiates an asynchronous service call to the
-        '/ariac/end_competition' service, setting up proper callback
-        handling for the service response.
-        """
-        self.get_logger().info("Ending competition")
+    #     This function initiates an asynchronous service call to the
+    #     '/ariac/end_competition' service, setting up proper callback
+    #     handling for the service response.
+    #     """
+    #     self.get_logger().info("Ending competition")
 
-        # Check if service is available
-        if not self._end_competition_client.wait_for_service(timeout_sec=3.0):
-            self.get_logger().error(
-                "Service '/ariac/end_competition' is not available."
-            )
-            return
+    #     # Check if service is available
+    #     if not self._end_competition_client.wait_for_service(timeout_sec=3.0):
+    #         self.get_logger().error(
+    #             "Service '/ariac/end_competition' is not available."
+    #         )
+    #         return
 
-        # Create trigger request and call starter service
-        request = Trigger.Request()
-        future = self._end_competition_client.call_async(request)
+    #     # Create trigger request and call starter service
+    #     request = Trigger.Request()
+    #     future = self._end_competition_client.call_async(request)
 
-        # Add a callback to handle the result
-        future.add_done_callback(self._end_competition_callback)
+    #     # Add a callback to handle the result
+    #     future.add_done_callback(self._end_competition_callback)
 
-    def _end_competition_callback(self, future):
-        """
-        Callback for competition end service response.
+    # def _end_competition_callback(self, future):
+    #     """
+    #     Callback for competition end service response.
 
-        This function processes the result of the asynchronous end competition
-        service call, logging appropriate messages based on the result.
+    #     This function processes the result of the asynchronous end competition
+    #     service call, logging appropriate messages based on the result.
 
-        Args:
-            future (rclpy.task.Future): The Future object containing the service response
-        """
-        try:
-            result = future.result()
-            if result.success:
-                self.get_logger().info("Competition ended successfully.")
-            else:
-                self.get_logger().warn("Unable to end competition")
-        except Exception as e:
-            self.get_logger().error(f"End competition service call failed: {e}")
+    #     Args:
+    #         future (rclpy.task.Future): The Future object containing the service response
+    #     """
+    #     try:
+    #         result = future.result()
+    #         if result.success:
+    #             self.get_logger().info("Competition ended successfully.")
+    #         else:
+    #             self.get_logger().warn("Unable to end competition")
+    #     except Exception as e:
+    #         self.get_logger().error(f"End competition service call failed: {e}")
 
     def _floor_robot_gripper_state_cb(self, msg: VacuumGripperState):
         """
@@ -2151,7 +2418,7 @@ class RobotController(Node):
         self._right_bins_parts = msg.part_poses
         self._right_bins_camera_pose = msg.sensor_pose
 
-    def _set_floor_robot_gripper_state(self, state):
+    def _set_floor_robot_gripper_state(self, myrequest, state):
         """
         Control the floor robot gripper and update planning scene when detaching objects.
 
@@ -2173,9 +2440,7 @@ class RobotController(Node):
         # If disabling the gripper and we have an attached part, detach it in the planning scene
         if not state and self._floor_robot_attached_part is not None:
             part_name = (
-                self._part_colors[self._floor_robot_attached_part.color]
-                + "_"
-                + self._part_types[self._floor_robot_attached_part.type]
+                myrequest.type
             )
             self._detach_object_from_floor_gripper(part_name)
             # Clear the attached part reference

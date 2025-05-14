@@ -471,7 +471,7 @@ void RetrieveOrders::task_processing()
             move_it_pose(current_task.get_type(),current_task.get_pose(),current_task.get_agv());
         
         else
-            move_it_pose(current_task.get_type(),current_task.get_pose(),current_task.get_quadrant());
+            move_it_pose(current_task.get_type(),current_task.get_pose(),static_cast<std::string>(current_task.get_quadrant()));
         
         // move_it_pose();
             

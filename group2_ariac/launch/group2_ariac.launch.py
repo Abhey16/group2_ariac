@@ -163,10 +163,10 @@ def launch_setup(context, *args, **kwargs):
         output="screen"
     )
     
-    robot_controller_node = Node(
+    server_node = Node(
         package="group2_ariac", 
-        executable="robot_controller_node.py",
-        name="robot_controller_node",
+        executable="server",
+        name="server",
         output="screen"
     )    
 
@@ -175,16 +175,16 @@ def launch_setup(context, *args, **kwargs):
         robot_controller_node_py_direct,  # Will only run if RViz is disabled
         move_group,
         rviz_node,
-        start_python_after_rviz,  # Will start Python node after RViz if RViz is enabled
+        # start_python_after_rviz,  # Will start Python node after RViz if RViz is enabled
         start_competition_node,
         retrieve_orders_node,
-        # tray_detector,
-        # bin_parts_detector,
+        tray_detector,
+        bin_parts_detector,
         # ship_orders,
         # complete_orders,
         # end_competition_node,
         # conveyor_tracker_node,
-        robot_controller_node,
+        # server_node,
     ]
 
     return nodes_to_start

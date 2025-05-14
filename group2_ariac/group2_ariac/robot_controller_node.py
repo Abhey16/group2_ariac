@@ -30,6 +30,8 @@ import cv2
 import numpy as np
 from os import path
 
+from group2_msgs.srv import Pose as ServicePose
+
 from moveit.core.robot_trajectory import RobotTrajectory
 from moveit.core.robot_state import RobotState, robotStateToRobotStateMsg
 from moveit_msgs.srv import GetCartesianPath, GetPositionFK, ApplyPlanningScene
@@ -268,6 +270,9 @@ class RobotController(Node):
         #     PerformQualityCheck, "/ariac/perform_quality_check"
         # )
 
+        # Service Server
+        self.srv = self.create_service(ServicePose, 'move_it_pose', self._pick_and_place_request)        
+
         # AGV tray lock clients
         self._lock_agv_tray_clients = {}
         self._unlock_agv_tray_clients = {}
@@ -280,13 +285,13 @@ class RobotController(Node):
             )
 
         # Subscribers
-        self._competition_state_sub = self.create_subscription(
-            CompetitionStateMsg,
-            "/ariac/competition_state",
-            self._competition_state_cb,
-            10,
-            callback_group=self._reentrant_cb_group,
-        )
+        # self._competition_state_sub = self.create_subscription(
+        #     CompetitionStateMsg,
+        #     "/ariac/competition_state",
+        #     self._competition_state_cb,
+        #     10,
+        #     callback_group=self._reentrant_cb_group,
+        # )
         self._floor_robot_gripper_state_sub = self.create_subscription(
             VacuumGripperState,
             "/ariac/floor_robot_gripper_state",
@@ -528,6 +533,544 @@ class RobotController(Node):
     #         # Add a callback to handle the result
     #         future.add_done_callback(self._competition_start_callback)
 
+    def _pick_and_place_request(self, request, response):
+        # Log incoming request data
+        self.get_logger().info("Received pick and place request:")
+        self.get_logger().info(f"  type = {request.type}")
+        self.get_logger().info(f"  agv_number = {request.agv_number}")
+        self.get_logger().info(f"  quadrant = {request.quadrant}")
+        self.get_logger().info(f"  pose = [x={request.pose.position.x}, y={request.pose.position.y}, z={request.pose.position.z}]")
+
+        if request.type == "tray":
+            FancyLog.info(self.get_logger(), "Executing tray pick and place operation")
+            success = self._pick_place_tray_request(request)
+            self._operation_started = True           
+        
+        if request.type == "battery" or request.type == "pump" or request.type == "regulator" or request.type == "sensor":
+            FancyLog.info(self.get_logger(), "Executing tray pick and place operation")
+            success = self._pick_place_part_request_operation(request)
+            self._operation_started = True 
+            
+        if request.type == "pump" or request.type == "sensor" or request.type == "battery":
+            success = self._pick_place_part_request(request)
+            self._operation_started = True     
+        if request.type == "regulator":
+            success = self._pick_place_part_request(request)
+            self._operation_started = True
+        
+        # Set response
+        response.status = success
+        return response
+
+    def _pick_place_part_request(self, request):
+        """
+        Execute part pick and place operation.
+
+        This function:
+        1. Gets the first order from the order queue
+        2. Verifies it's a kitting task
+        3. Selects a random part from bins to pick up
+        4. Picks the part from its bin location
+        5. Places the part on a random quadrant of the AGV's kit tray
+        6. Returns to home position
+        7. Ends the competition
+
+        Returns:
+            bool: True if operation completed successfully, False otherwise
+        """
+
+        # Move floor robot to safe starting position
+        # self._move_floor_robot_to_joint_position("home")
+
+        # Ensure AGV is at kitting station and has a tray
+        agv_num = request.agv_number
+
+        # Select a random part to pick up
+        part_to_pick = PartMsg()
+
+        # Pick the part
+        if not self._floor_robot_pick_bin_part_request(request, part_to_pick):
+            self.get_logger().error("Failed to pick part from bins")
+            return False
+
+        # Place on a random quadrant
+        quadrant = request.quadrant
+        self.get_logger().info(f"Placing part in quadrant {quadrant}")
+
+        success = self._floor_robot_place_part_on_kit_tray(agv_num, quadrant)
+
+        if success:
+            self.get_logger().info("Successfully placed part on tray")
+        else:
+            self.get_logger().error("Failed to place part on tray")
+
+        # Return to home position
+        self._move_floor_robot_to_joint_position("home")
+
+        # End competition when done
+        self._end_competition()
+
+        return success
+
+    def _floor_robot_pick_bin_part_request(self, request, part_to_pick: PartMsg):
+        """
+        Pick a part from a bin using optimized Cartesian motion planning.
+
+        This function implements a complete part picking process:
+        1. PART DETECTION - Locates the specified part in bins using camera data
+        2. GRIPPER PREPARATION - Changes to part gripper if needed
+        3. APPROACH - Moves to bin and positions above part
+        4. PICKING - Moves down to grasp position and enables gripper
+        5. RETREAT - Lifts part and returns to safe bin position
+        6. SCENE UPDATE - Updates planning scene with attached part
+
+        Args:
+            part_to_pick (PartMsg): Part type and color to pick
+
+        Returns:
+            bool: True if pick operation succeeded, False otherwise
+        """
+        # Skip unnecessary debug logging for faster operation
+        self.get_logger().info(
+            f"Picking {request.type}"
+        )
+
+        # Initialize variables
+        part_pose = request.pose
+        bin_side = "right_bins" if part_pose.position.y < 0 else "left_bins"
+
+        # GRIPPER PREPARATION PHASE - Skip if already using the right gripper
+        if self._floor_robot_gripper_state.type != "part_gripper":
+            # Determine which tool changer station to use
+            station = "kts1" if part_pose.position.y < 0 else "kts2"
+
+            # Move to the tool changer and change gripper
+            self._move_floor_robot_to_joint_position(f"floor_{station}_js_")
+            self._floor_robot_change_gripper(station, "parts")
+
+        # APPROACH PHASE - Faster approach
+        # Move to the bin with the part
+        self._move_floor_robot_to_joint_position(bin_side)
+
+        # Calculate the proper orientation for the robot's gripper to pick up a part.
+
+        # This line extracts the yaw angle (rotation around the z-axis) from the part's orientation.
+        # 1. part_pose.orientation contains a quaternion, which is a 4-element representation of 3D rotation (x, y, z, w)
+        # 2. The function rpy_from_quaternion() converts this quaternion into Euler angles (roll, pitch, yaw)
+        # 3. [2] retrieves the third element of the returned array, which is the yaw angle (rotation around the z-axis)
+        # This yaw angle represents how the part is rotated on the horizontal plane, which is important for properly aligning the gripper.
+        part_rotation = rpy_from_quaternion(part_pose.orientation)[2]
+        # This line creates a new quaternion for the gripper's orientation that will be appropriate for grasping the part.
+        # quaternion_from_euler() converts Euler angles back to a quaternion
+        # Parameters represent:
+        # 1. Roll (0.0): No rotation around x-axis
+        # 2. Pitch (pi): 180° rotation around y-axis, pointing the gripper downward
+        # 3. Yaw (part_rotation): Uses the part's yaw rotation so the gripper aligns with the part
+        gripper_orientation = quaternion_from_euler(0.0, pi, part_rotation)
+
+        # Move above the part - use closer approach to save time
+        # We place the gripper 15 cm above the part.
+        above_pose = build_pose(
+            part_pose.position.x,
+            part_pose.position.y,
+            part_pose.position.z + 0.15,  # Reduced from 0.3 to 0.15
+            gripper_orientation,
+        )
+        # Sets a target pose in Cartesian space
+        # Lets the motion planner (MoveIt) determine the optimal path
+        # The planner will typically find a path that's efficient in joint space, but the goal is specified in Cartesian space
+        # Doesn't give explicit control over the path shape
+        self._move_floor_robot_to_pose(above_pose)
+
+        # PICKING PHASE - Getting closer to the part
+        self.get_logger().info("Moving to grasp position")
+        waypoints = [
+            build_pose(
+                part_pose.position.x,
+                part_pose.position.y,
+                # Optimize height for better first-attempt success
+                part_pose.position.z
+                + RobotController._part_heights[part_to_pick.type]
+                + 0.005,  # You can adjust this value
+                gripper_orientation,
+            )
+        ]
+        # Enforces a straight-line path in Cartesian space
+        # Gives explicit control over velocity and acceleration
+        # Can specify whether collision checking should be performed
+        # Constraints the motion to follow a specific path, not just reach a goal
+        self._move_floor_robot_cartesian(waypoints, 0.3, 0.3, False)
+
+        # Enable gripper with less waiting
+        self._set_floor_robot_gripper_state(True)
+
+        try:
+            self._floor_robot_wait_for_attach(
+                10.0, gripper_orientation
+            )  # Reduced timeout
+        except Error as e:
+            self.get_logger().error(f"Attachment failed: {str(e)}")
+
+            # Quick recovery
+            waypoints = [
+                build_pose(
+                    part_pose.position.x,
+                    part_pose.position.y,
+                    part_pose.position.z + 0.2,
+                    gripper_orientation,
+                )
+            ]
+            self._move_floor_robot_cartesian(waypoints, 0.5, 0.5, False)
+            self._set_floor_robot_gripper_state(False)
+            return False
+
+        # RETREAT PHASE - Faster retreat
+        # Quick lift to clear obstacles
+        waypoints = [
+            build_pose(
+                part_pose.position.x,
+                part_pose.position.y,
+                part_pose.position.z + 0.2,
+                gripper_orientation,
+            )
+        ]
+        self._move_floor_robot_cartesian(waypoints, 0.2, 0.2, False)
+
+        # Return to bin position
+        self._move_floor_robot_to_joint_position(bin_side)
+
+        # SCENE UPDATE PHASE - Minimal planning scene updates
+        # Just record the attached part internally for tracking
+        self._floor_robot_attached_part = part_to_pick
+
+        # Only update planning scene if needed
+        self._attach_model_to_floor_gripper(part_to_pick, part_pose)
+
+        return True
+
+    def _floor_robot_place_part_on_kit_tray_request(self, agv_num, quadrant):
+        """
+        Place a part on a kit tray on the specified AGV in the given quadrant.
+
+        This function handles the complete process of:
+        1. Verifying a part is currently attached to the gripper
+        2. Validating AGV number and quadrant parameters
+        3. Moving to the AGV using joint space planning
+        4. Positioning the part above the target quadrant using Cartesian planning
+        5. Lowering the part into place on the tray
+        6. Releasing the part and retreating to a safe position
+
+        Args:
+            agv_num (int): AGV number (1-4) to place the part on
+            quadrant (int): Quadrant number (1-4) of the tray to place the part in
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        if (
+            not self._floor_robot_gripper_state
+            or not self._floor_robot_gripper_state.attached
+        ):
+            self.get_logger().error("No part attached")
+            return False
+
+        self.get_logger().info(f"Placing part on AGV {agv_num} in quadrant {quadrant}")
+
+        # Validate inputs
+        if agv_num < 1 or agv_num > 4:
+            self.get_logger().error(f"Invalid AGV number: {agv_num}")
+            return False
+
+        if quadrant < 1 or quadrant > 4:
+            self.get_logger().error(f"Invalid quadrant number: {quadrant}")
+            return False
+
+        # Move to AGV using planning scene monitor
+        with self._planning_scene_monitor.read_write() as scene:
+            # Set the start state
+            self._floor_robot.set_start_state(robot_state=scene.current_state)
+
+            # Create a new state for the goal
+            goal_state = copy(scene.current_state)
+
+            # Set joint positions manually
+            goal_state.joint_positions = {
+                "linear_actuator_joint": self._rail_positions[f"agv{agv_num}"],
+                "floor_shoulder_pan_joint": 0.0,
+                # Set other joints to reasonable values
+                "floor_shoulder_lift_joint": -1.0,
+                "floor_elbow_joint": 1.57,
+                "floor_wrist_1_joint": -1.57,
+                "floor_wrist_2_joint": -1.57,
+                "floor_wrist_3_joint": 0.0,
+            }
+
+            # Create constraint
+            joint_constraint = construct_joint_constraint(
+                robot_state=goal_state,
+                joint_model_group=self._ariac_robots.get_robot_model().get_joint_model_group(
+                    "floor_robot"
+                ),
+            )
+
+            # Set goal
+            self._floor_robot.set_goal_state(motion_plan_constraints=[joint_constraint])
+
+        # Plan and execute
+        success = self._plan_and_execute(
+            self._ariac_robots, self._floor_robot, self.get_logger(), "floor_robot"
+        )
+
+        if not success:
+            self.get_logger().error("Failed to move to AGV")
+            return False
+
+        # Continue with placing the part...
+        try:
+            # Get the AGV tray pose
+            agv_tray_pose = self._frame_world_pose(f"agv{agv_num}_tray")
+
+            # Calculate drop position using quadrant offset
+            offset_x, offset_y = self._quad_offsets[quadrant]
+
+            # Create cartesian path to place the part
+            waypoints = []
+            waypoints.append(
+                build_pose(
+                    agv_tray_pose.position.x + offset_x,
+                    agv_tray_pose.position.y + offset_y,
+                    agv_tray_pose.position.z + 0.2,  # First move above
+                    quaternion_from_euler(0.0, pi, 0.0),
+                )
+            )
+
+            if not self._move_floor_robot_cartesian(waypoints, 0.3, 0.3, True):
+                self.get_logger().error("Failed to move above drop position")
+                return False
+
+            # Move down to place the part
+            waypoints = []
+            waypoints.append(
+                build_pose(
+                    agv_tray_pose.position.x + offset_x,
+                    agv_tray_pose.position.y + offset_y,
+                    agv_tray_pose.position.z + 0.05,  # Final placement position
+                    quaternion_from_euler(0.0, pi, 0.0),
+                )
+            )
+
+            if not self._move_floor_robot_cartesian(waypoints, 0.2, 0.2, True):
+                self.get_logger().error("Failed to move to place position")
+                return False
+
+            # Release part
+            self._set_floor_robot_gripper_state(False)
+            time.sleep(0.5)  # Wait for release
+
+            # Move up
+            waypoints = []
+            waypoints.append(
+                build_pose(
+                    agv_tray_pose.position.x + offset_x,
+                    agv_tray_pose.position.y + offset_y,
+                    agv_tray_pose.position.z + 0.2,
+                    quaternion_from_euler(0.0, pi, 0.0),
+                )
+            )
+
+            self._move_floor_robot_cartesian(waypoints, 0.3, 0.3, True)
+
+            self.get_logger().info(
+                f"Successfully placed part on AGV {agv_num} in quadrant {quadrant}"
+            )
+            return True
+
+        except Exception as e:
+            self.get_logger().error(f"Error placing part: {str(e)}")
+            return False
+
+    def _pick_place_tray_request(self, request):
+        """
+        Execute tray pick and place operation.
+
+        This function:
+        1. Gets the first order from the order queue
+        2. Verifies it's a kitting task
+        3. Picks and places a tray on the specified AGV
+        4. Returns to home position
+        5. Ends the competition
+
+        Returns:
+            bool: True if operation completed successfully, False otherwise
+        """
+
+
+        # Move floor robot to safe starting position
+        # self._move_floor_robot_to_joint_position("home")
+
+        # Ensure AGV is at kitting station
+        agv_num = request.agv_number
+
+        # Pick and place the tray only
+        success = self._floor_robot_pick_and_place_tray_request(
+            request, agv_num
+        )
+
+        if success:
+            self.get_logger().info("Successfully picked and placed tray")
+        else:
+            self.get_logger().error("Failed to pick and place tray")
+
+        # Return to home position
+        self._move_floor_robot_to_joint_position("home")
+
+        # Send success message when done
+        
+        return success
+
+    def _floor_robot_pick_and_place_tray_request(self, request, agv_num):
+        """
+        Pick a tray and place it on the specified AGV.
+
+        This function implements the complete process of:
+        1. Locating a tray by ID on either station KTS1 or KTS2
+        2. Moving to the appropriate kit tray table
+        3. Changing to tray gripper if needed
+        4. Approaching and picking up the tray
+        5. Moving to the target AGV
+        6. Placing and locking the tray on the AGV
+
+        Args:
+            tray_id (int): ID of the tray to pick
+            agv_num (int): AGV number to place the tray on
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        FancyLog.info(
+            self.get_logger(),
+            f"Attempting to pick up kit tray and place on AGV {agv_num}",
+        )
+
+        # Check if kit tray is on one of the two tables
+        tray_pose = None
+        station = None
+
+        tray_pose = request.pose
+        tray_rotation = rpy_from_quaternion(tray_pose.orientation)[2]
+
+        station = "kts1" if tray_pose.position.y < 0 else "kts2"
+        
+        self.get_logger().info(
+            "Moving to pick location"
+        )
+
+        # Move floor robot to the corresponding kit tray table
+        joint_position_key = f"floor_{station}_js_"
+        self._move_floor_robot_to_joint_position(joint_position_key)
+
+        # Change gripper to tray gripper if needed
+        if self._floor_robot_gripper_state.type != "tray_gripper":
+            gripper_changed = self._floor_robot_change_gripper(station, "trays")
+            if not gripper_changed:
+                FancyLog.error(self.get_logger(), "Failed to change to tray gripper")
+                return False
+
+        # Move to pick up tray
+        waypoints = []
+        gripper_orientation = quaternion_from_euler(0.0, pi, tray_rotation)
+
+        # First move above the tray
+        self._move_floor_robot_to_pose(
+            build_pose(
+                tray_pose.position.x,
+                tray_pose.position.y,
+                tray_pose.position.z + 0.5,
+                gripper_orientation,
+            )
+        )
+
+        # Move to grasp position
+        waypoints = [
+            build_pose(
+                tray_pose.position.x,
+                tray_pose.position.y,
+                tray_pose.position.z + self._pick_offset,
+                gripper_orientation,
+            )
+        ]
+
+        self._move_floor_robot_cartesian(waypoints, 0.2, 0.2, False)
+
+        # Enable gripper and wait for attachment
+        self._set_floor_robot_gripper_state(True)
+
+        try:
+            self._floor_robot_wait_for_attach(30.0, gripper_orientation)
+        except Error as e:
+            FancyLog.error(self.get_logger(), f"Failed to attach to tray: {str(e)}")
+
+        # Lift tray
+        waypoints.clear()
+        waypoints.append(
+            build_pose(
+                tray_pose.position.x,
+                tray_pose.position.y,
+                tray_pose.position.z + 0.3,
+                gripper_orientation,
+            )
+        )
+
+        self._move_floor_robot_cartesian(waypoints, 0.3, 0.3, True)
+
+        # Move to AGV
+        agv_tray_pose = self._frame_world_pose(f"agv{agv_num}_tray")
+        agv_yaw = rpy_from_quaternion(agv_tray_pose.orientation)[2]
+        agv_rotation = quaternion_from_euler(0.0, pi, agv_yaw)
+
+        # Move above AGV
+        self._move_floor_robot_to_pose(
+            build_pose(
+                agv_tray_pose.position.x,
+                agv_tray_pose.position.y,
+                agv_tray_pose.position.z + 0.5,
+                agv_rotation,
+            )
+        )
+
+        # Lower the arm
+        waypoints = [
+            build_pose(
+                agv_tray_pose.position.x,
+                agv_tray_pose.position.y,
+                agv_tray_pose.position.z + 0.01,
+                agv_rotation,
+            )
+        ]
+        self._move_floor_robot_cartesian(waypoints, 0.3, 0.3)
+
+        # Release the tray
+        self._set_floor_robot_gripper_state(False)
+
+        # Lock tray to AGV
+        self._lock_agv_tray(agv_num)
+
+        # Move up
+        waypoints.clear()
+        waypoints.append(
+            build_pose(
+                agv_tray_pose.position.x,
+                agv_tray_pose.position.y,
+                agv_tray_pose.position.z + 0.3,
+                quaternion_from_euler(0.0, pi, 0),
+            )
+        )
+
+        self._move_floor_robot_cartesian(waypoints, 0.2, 0.2, False)
+
+        self.get_logger().info(f"Successfully placed tray on AGV {agv_num}")
+        return True
+
     def _control_cb(self):
         """
         Primary control loop timer callback for the robot controller.
@@ -557,26 +1100,26 @@ class RobotController(Node):
                 )
                 return  # Exit early to retry on next timer callback
 
-        if not self._operation_started:
-            # Wait for camera data to be available
-            if not self._right_bins_parts:
-                self.get_logger().info("Waiting for right bins camera data...")
-                return
-            if not self._left_bins_parts:
-                self.get_logger().info("Waiting for left bins camera data...")
-                return
+        # if not self._operation_started:
+        #     # Wait for camera data to be available
+        #     if not self._right_bins_parts:
+        #         self.get_logger().info("Waiting for right bins camera data...")
+        #         return
+        #     if not self._left_bins_parts:
+        #         self.get_logger().info("Waiting for left bins camera data...")
+        #         return
 
-            # Only proceed if competition is in the correct state
-            if (
-                self._competition_state
-                in [
-                    CompetitionStateMsg.STARTED,
-                    CompetitionStateMsg.ORDER_ANNOUNCEMENTS_DONE,
-                ]
-                and len(self._orders) > 0
-            ):
-                self._start_operation()
-                self._operation_started = True
+        #     # Only proceed if competition is in the correct state
+        #     if (
+        #         self._competition_state
+        #         in [
+        #             CompetitionStateMsg.STARTED,
+        #             CompetitionStateMsg.ORDER_ANNOUNCEMENTS_DONE,
+        #         ]
+        #         and len(self._orders) > 0
+        #     ):
+        #         self._start_operation()
+        #         self._operation_started = True
 
     def _verify_planning_scene_ready(self):
         """
@@ -856,14 +1399,6 @@ class RobotController(Node):
             bool: True if operation completed successfully, False otherwise
         """
 
-        # Get the first order
-        if self._orders:
-            self._current_order = self._orders[0]
-
-        # Only proceed if it's a kitting task
-        if self._current_order.type != OrderMsg.KITTING:
-            self.get_logger().error("Order is not a kitting task")
-            return False
 
         # Move floor robot to safe starting position
         # self._move_floor_robot_to_joint_position("home")
@@ -884,9 +1419,8 @@ class RobotController(Node):
         # Return to home position
         self._move_floor_robot_to_joint_position("home")
 
-        # End competition when done
-        self._end_competition()
-
+        # Send success message when done
+        
         return success
 
     def _execute_pick_place_part_operation(self):

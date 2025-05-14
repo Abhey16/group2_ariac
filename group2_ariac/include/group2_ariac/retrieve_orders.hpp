@@ -556,9 +556,14 @@ public:
         // RCLCPP_INFO(this->get_logger()," tray subscriber created");
 
         // Create the timer callback function
-        timer_ = this->create_wall_timer(
+        order_timer_ = this->create_wall_timer(
             std::chrono::seconds(5),  // every 5 seconds
             std::bind(&RetrieveOrders::order_processing_callback, this));
+        
+        // Create the timer callback function
+        // task_timer_ = this->create_wall_timer(
+        //     std::chrono::seconds(1),  // every 1 seconds
+        //     std::bind(&RetrieveOrders::task_processing, this));
         
         move_it_client_ = this->create_client<group2_msgs::srv::Pose>("move_it_pose");
 
@@ -635,7 +640,10 @@ private:
     std::queue<Task> task_queue;
     
     // timer callback
-    rclcpp::TimerBase::SharedPtr timer_;
+    rclcpp::TimerBase::SharedPtr order_timer_;
+
+    // timer callback
+    rclcpp::TimerBase::SharedPtr task_timer_;
 
     ariac_msgs::msg::AdvancedLogicalCameraImage latest_tray_pose_;
 
@@ -652,6 +660,8 @@ private:
     bool parts_found_ = false;
 
     bool ongoing_order_ = false;
+
+    bool  ongoing_task_ = false;
 
     bool current_priority = false;
 

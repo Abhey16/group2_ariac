@@ -95,13 +95,49 @@ void TrayDetector::tray_pose(cv::Mat input_img, std::string win_name)
             geometry_msgs::msg::Point TrayPoint;
             geometry_msgs::msg::Quaternion TrayOrientation;
 
-            TrayPoint.x = tvecs[i][0];
-            TrayPoint.y = tvecs[i][1];
-            TrayPoint.z = tvecs[i][2];
-            TrayOrientation.x = q.x;
-            TrayOrientation.y = q.y;
-            TrayOrientation.z = q.z;
-            TrayOrientation.w = q.w;
+           // getting the part in world coordinate frame
+            KDL::Frame kdl_camera_world;
+            geometry_msgs::msg::Pose pose;
+
+            // kts1 Tray Pose
+            if (ids[i]==1 or ids[i]==2)
+                {   
+                    // camera_world - constructor
+                    KDL::Frame kdl_camera_world(
+                        TrayDetector::ros_quaternion_to_kdl_rotation(TrayDetector::euler_to_quaternions(3.14, 3.14/2, 3.14/2)),
+                        KDL::Vector(-1.3, -5.8, 1.8)
+                    );
+
+                    pose = TrayDetector::part_world(TrayDetector::cv_to_ros_quaternions(q), tvecs[i][0], tvecs[i][1], tvecs[i][2], kdl_camera_world);
+
+                }
+
+            // kts2 Tray Pose
+            else
+                {
+                    KDL::Frame kdl_camera_world(    // optical_frame_camera - constructor
+                        TrayDetector::ros_quaternion_to_kdl_rotation(TrayDetector::euler_to_quaternions(3.14, 3.14/2, - 3.14/2)),
+                        KDL::Vector(-1.3, 5.8, 1.8)
+                    );
+                
+                    pose = TrayDetector::part_world(TrayDetector::cv_to_ros_quaternions(q), tvecs[i][0], tvecs[i][1], tvecs[i][2], kdl_camera_world);
+                }
+
+            // TrayPoint.x = tvecs[i][0];
+            // TrayPoint.y = tvecs[i][1];
+            // TrayPoint.z = tvecs[i][2];
+            // TrayOrientation.x = q.x;
+            // TrayOrientation.y = q.y;
+            // TrayOrientation.z = q.z;
+            // TrayOrientation.w = q.w;
+
+            TrayPoint.x = pose.position.x;
+            TrayPoint.y = pose.position.y;
+            TrayPoint.z = pose.position.z;
+            TrayOrientation.x = pose.orientation.x;
+            TrayOrientation.y = pose.orientation.y;
+            TrayOrientation.z = pose.orientation.z;
+            TrayOrientation.w = pose.orientation.w;
 
             TrayPose.position = TrayPoint;
             TrayPose.orientation = TrayOrientation;
@@ -133,41 +169,42 @@ void TrayDetector::tray_pose(cv::Mat input_img, std::string win_name)
             // RCLCPP_INFO(this->get_logger(), "Tray %d : [%.4f %.4f %.4f] [%.4f %.4f %.4f %.4f]", ids[i], tvecs[i][0], tvecs[i][1], tvecs[i][2], q.x, q.y, q.z, q.w);
 
             // getting the part in world coordinate frame
-            KDL::Frame kdl_camera_world;
+            // KDL::Frame kdl_camera_world;
 
-            // kts1 Tray Pose
-            if (ids[i]==1 or ids[i]==2)
-                {   
-                    // camera_world - constructor
-                    KDL::Frame kdl_camera_world(
-                        TrayDetector::ros_quaternion_to_kdl_rotation(TrayDetector::euler_to_quaternions(3.14, 3.14/2, 3.14/2)),
-                        KDL::Vector(-1.3, -5.8, 1.8)
-                    );
+            // // kts1 Tray Pose
+            // if (ids[i]==1 or ids[i]==2)
+            //     {   
+            //         // camera_world - constructor
+            //         KDL::Frame kdl_camera_world(
+            //             TrayDetector::ros_quaternion_to_kdl_rotation(TrayDetector::euler_to_quaternions(3.14, 3.14/2, 3.14/2)),
+            //             KDL::Vector(-1.3, -5.8, 1.8)
+            //         );
 
-                    TrayDetector::part_world(TrayDetector::cv_to_ros_quaternions(q), tvecs[i][0], tvecs[i][1], tvecs[i][2], kdl_camera_world);
+            //         TrayDetector::part_world(TrayDetector::cv_to_ros_quaternions(q), tvecs[i][0], tvecs[i][1], tvecs[i][2], kdl_camera_world);
 
-                }
+            //     }
 
-            // kts2 Tray Pose
-            else
-                {
-                    KDL::Frame kdl_camera_world(    // optical_frame_camera - constructor
-                        TrayDetector::ros_quaternion_to_kdl_rotation(TrayDetector::euler_to_quaternions(3.14, 3.14/2, - 3.14/2)),
-                        KDL::Vector(-1.3, 5.8, 1.8)
-                    );
+            // // kts2 Tray Pose
+            // else
+            //     {
+            //         KDL::Frame kdl_camera_world(    // optical_frame_camera - constructor
+            //             TrayDetector::ros_quaternion_to_kdl_rotation(TrayDetector::euler_to_quaternions(3.14, 3.14/2, - 3.14/2)),
+            //             KDL::Vector(-1.3, 5.8, 1.8)
+            //         );
 
-                    TrayDetector::part_world(TrayDetector::cv_to_ros_quaternions(q), tvecs[i][0], tvecs[i][1], tvecs[i][2], kdl_camera_world);
-                }
+            //         TrayDetector::part_world(TrayDetector::cv_to_ros_quaternions(q), tvecs[i][0], tvecs[i][1], tvecs[i][2], kdl_camera_world);
+            //     }
 
             // RCLCPP_INFO(this->get_logger(), "##############################################");
-        }
+            }
     }
 
     cv::imshow(win_name, imageCopy);
 }
 
+
 // Computes the tray's pose in the world frame given its pose in the camera frame
-void TrayDetector::part_world(const geometry_msgs::msg::Quaternion &q, const double &x, const double &y, const double &z, const KDL::Frame &kdl_camera_world)
+geometry_msgs::msg::Pose TrayDetector::part_world(const geometry_msgs::msg::Quaternion &q, const double &x, const double &y, const double &z, const KDL::Frame &kdl_camera_world)
 {
     // Convert poses into kdl frames
     // part_optical_frame - constructor
@@ -192,7 +229,9 @@ void TrayDetector::part_world(const geometry_msgs::msg::Quaternion &q, const dou
     pose.position.z = kdl_part_world.p.z();
 
     pose.orientation = TrayDetector::kdl_rotation_to_ros_quaternion(kdl_part_world.M);
-    auto [roll, pitch, yaw] = TrayDetector::euler_from_quaternion(pose.orientation);
+    // auto [roll, pitch, yaw] = TrayDetector::euler_from_quaternion(pose.orientation);
+
+    return pose;
 
     // // Print final world pose with orientation
     // RCLCPP_INFO(this->get_logger(), "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");

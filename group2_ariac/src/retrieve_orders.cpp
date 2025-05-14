@@ -373,7 +373,7 @@ void RetrieveOrders::get_bin_parts(const Order& current_order)
             std::string color = bin_part.color;
             std::transform(color.begin(), color.end(), color.begin(), ::toupper);
 
-            std::string quadrant_number = part.get_quadrant();
+            
 
             if (type == part.get_part().get_type().c_str() && color == part.get_part().get_color().c_str())
             {   
@@ -385,8 +385,11 @@ void RetrieveOrders::get_bin_parts(const Order& current_order)
                             bin_part.position.x, bin_part.position.y, bin_part.position.z,
                             bin_part.orientation.x, bin_part.orientation.y, bin_part.orientation.z, bin_part.orientation.w);
 
+                // std::string quadrant_number = part.get_quadrant();
+                std::string quadrant_number = part.get_quadrant();
+
                 // Creating Task object
-                Task object("bin",parts_pose_to_geometry(bin_part),quadrant_number);
+                Task object(type,parts_pose_to_geometry(bin_part),quadrant_number);
 
                 // pushing it into a queue
                 task_queue.push(object);
@@ -411,7 +414,7 @@ void RetrieveOrders::get_conveyor_parts(const Order& current_order)
             std::string color = conveyor_part.color;
             std::transform(color.begin(), color.end(), color.begin(), ::toupper);
 
-            std::string quadrant_number = part.get_quadrant();
+            // std::string quadrant_number = part.get_quadrant();
 
             if (type == part.get_part().get_type().c_str() && color == part.get_part().get_color().c_str())
             {   
@@ -432,9 +435,9 @@ void RetrieveOrders::get_conveyor_parts(const Order& current_order)
                             conveyor_part.predicted_pos_2.x, conveyor_part.predicted_pos_2.y, conveyor_part.predicted_pos_2.z,
                             conveyor_part.orientation.x, conveyor_part.orientation.y, conveyor_part.orientation.z, conveyor_part.orientation.w);                            
 
-
+                std::string quadrant_number = part.get_quadrant();
                 // Creating Task object
-                Task object("conveyor",parts_pose_to_geometry(conveyor_part),quadrant_number);
+                Task object(type,parts_pose_to_geometry(conveyor_part),quadrant_number);
 
                 // pushing it into a queue
                 task_queue.push(object);

@@ -27,6 +27,7 @@ private:
         else
             RCLCPP_INFO(this->get_logger(),"type :%s",request->quadrant.c_str());
 
+        
         response->status = true;
 
         RCLCPP_INFO(this->get_logger(),"status %d",response->status);

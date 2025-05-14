@@ -486,10 +486,17 @@ private:
 class Task
 {
     public:
-        Task(const std::string type, const geometry_msgs::msg::Pose &pose)
+        Task(const std::string &type, const geometry_msgs::msg::Pose &pose, const int32_t &agv_number)
         {   
             object_type = type;
             object_pose = pose;
+            object_agv = agv_number;
+        }
+        Task(const std::string &type, const geometry_msgs::msg::Pose &pose, std::string &quadrant)
+        {   
+            object_type = type;
+            object_pose = pose;
+            object_quadrant = quadrant;
         }
 
         // move
@@ -502,10 +509,15 @@ class Task
 
         const geometry_msgs::msg::Pose &get_pose() const {return object_pose;}
         const std::string &get_type() const {return object_type;}
+        const int32_t &get_agv() const {return object_agv;}
+        const std::string &get_quadrant() const {return object_quadrant;}
         
     private:
         std::string object_type;
         geometry_msgs::msg::Pose object_pose{};
+        int32_t object_agv;
+        std::string object_quadrant;
+
 
 };
 
@@ -596,7 +608,9 @@ public:
 
     void task_processing();
 
-    void move_it_pose(std::string type,geometry_msgs::msg::Pose pose);
+    void move_it_pose(std::string type,geometry_msgs::msg::Pose pose, int32_t agv);
+
+    void move_it_pose(std::string type,geometry_msgs::msg::Pose pose, std::string quadrant);
 
     void callback_move_it_pose(rclcpp::Client<group2_msgs::srv::Pose>::SharedFuture future);
 

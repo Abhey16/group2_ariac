@@ -326,6 +326,7 @@ void RetrieveOrders::get_tray_poses(const Order& current_order)
 
         int tray_id = tray_pose.id;
         const auto& pose = tray_pose.pose;
+        int32_t agv_number = current_order.get_kitting_task().get_agv_number();
 
         if (tray_id == current_order.get_kitting_task().get_tray_id())
         {
@@ -344,7 +345,7 @@ void RetrieveOrders::get_tray_poses(const Order& current_order)
             );
 
             // Creating Task object
-            Task object("tray",pose);
+            Task object("tray",pose,agv_number);
 
             // pushing it into a queue
             task_queue.push(object);
@@ -372,6 +373,8 @@ void RetrieveOrders::get_bin_parts(const Order& current_order)
             std::string color = bin_part.color;
             std::transform(color.begin(), color.end(), color.begin(), ::toupper);
 
+            std::string quadrant_number = part.get_quadrant();
+
             if (type == part.get_part().get_type().c_str() && color == part.get_part().get_color().c_str())
             {   
                 // Display the detected bin parts
@@ -383,7 +386,7 @@ void RetrieveOrders::get_bin_parts(const Order& current_order)
                             bin_part.orientation.x, bin_part.orientation.y, bin_part.orientation.z, bin_part.orientation.w);
 
                 // Creating Task object
-                Task object("bin",parts_pose_to_geometry(bin_part));
+                Task object("bin",parts_pose_to_geometry(bin_part),quadrant_number);
 
                 // pushing it into a queue
                 task_queue.push(object);
@@ -408,6 +411,8 @@ void RetrieveOrders::get_conveyor_parts(const Order& current_order)
             std::string color = conveyor_part.color;
             std::transform(color.begin(), color.end(), color.begin(), ::toupper);
 
+            std::string quadrant_number = part.get_quadrant();
+
             if (type == part.get_part().get_type().c_str() && color == part.get_part().get_color().c_str())
             {   
                 // Display conveyor belt parts
@@ -429,7 +434,7 @@ void RetrieveOrders::get_conveyor_parts(const Order& current_order)
 
 
                 // Creating Task object
-                Task object("conveyor",parts_pose_to_geometry(conveyor_part));
+                Task object("conveyor",parts_pose_to_geometry(conveyor_part),quadrant_number);
 
                 // pushing it into a queue
                 task_queue.push(object);
@@ -458,8 +463,12 @@ void RetrieveOrders::task_processing()
             current_task.get_pose().orientation.z,
             current_task.get_pose().orientation.w
             );
-
-        move_it_pose(current_task.get_type(),current_task.get_pose());
+        
+        if (current_task.get_type() == "tray")
+            move_it_pose(current_task.get_type(),current_task.get_pose(),current_task.get_agv());
+        
+        else
+            move_it_pose(current_task.get_type(),current_task.get_pose(),current_task.get_quadrant());
         
         // move_it_pose();
             
@@ -491,7 +500,7 @@ geometry_msgs::msg::Pose RetrieveOrders::parts_pose_to_geometry(const group2_msg
     return pose;
 }
 
-void RetrieveOrders::move_it_pose(std::string type,geometry_msgs::msg::Pose pose)
+void RetrieveOrders::move_it_pose(std::string type,geometry_msgs::msg::Pose pose,int32_t agv)
 {
     while (!move_it_client_->wait_for_service(std::chrono::seconds(1)))
     {
@@ -501,25 +510,32 @@ void RetrieveOrders::move_it_pose(std::string type,geometry_msgs::msg::Pose pose
     auto request = std::make_shared<group2_msgs::srv::Pose::Request>();
     request->type = type;
     request->pose = pose;
+    request->agv_number = agv;
     
     auto result = move_it_client_->async_send_request(
             request, std::bind(&RetrieveOrders::callback_move_it_pose, this, std::placeholders::_1));
 
-    
-    // auto result = move_it_client_->async_send_request(request);
-
-    // result.wait();
-
-    // if (result.get()->status)
-    //     {
-    //         RCLCPP_INFO(this->get_logger(), "Service successful");
-    //     }
-    // else
-    //     {
-    //         RCLCPP_INFO(this->get_logger(), "Service unsuccessful");
-    //     }
 
 }
+
+void RetrieveOrders::move_it_pose(std::string type,geometry_msgs::msg::Pose pose, std::string quadrant)
+{
+    while (!move_it_client_->wait_for_service(std::chrono::seconds(1)))
+    {
+        RCLCPP_WARN(this->get_logger(), "Waiting for the server...");
+    }
+
+    auto request = std::make_shared<group2_msgs::srv::Pose::Request>();
+    request->type = type;
+    request->pose = pose;
+    request->quadrant = quadrant;
+
+    auto result = move_it_client_->async_send_request(
+            request, std::bind(&RetrieveOrders::callback_move_it_pose, this, std::placeholders::_1));
+
+
+}
+
 
 void RetrieveOrders::callback_move_it_pose(rclcpp::Client<group2_msgs::srv::Pose>::SharedFuture future)
 {

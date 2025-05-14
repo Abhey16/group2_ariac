@@ -21,6 +21,11 @@ private:
 
         RCLCPP_INFO(this->get_logger(),"recieve client request");
         RCLCPP_INFO(this->get_logger(),"type %s",request->type.c_str());
+        
+        if (request->type == "tray")
+            RCLCPP_INFO(this->get_logger(),"agv :%d",request->agv_number);
+        else
+            RCLCPP_INFO(this->get_logger(),"type :%s",request->quadrant.c_str());
 
         response->status = true;
 

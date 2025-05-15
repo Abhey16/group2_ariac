@@ -246,12 +246,12 @@ class RobotController(Node):
         self._ceiling_joint_positions_arrs = {
             "floor_kts1_js_": [2.0, 4.0, -1.57, 1.57, -1.57, 0.0, 3.14, 1.571, 0.0],
             "floor_kts2_js_": [2.0, -4.0, -1.57, 1.57, -1.57, 0.0, 3.14, 1.571, 0.0],
-            "left_bins": [2.0, 3.0, -1.57, 1.57, -1.57, 0.0, 3.14, 1.571, 0.0],
-            "right_bins": [2.0, -3.0, -1.57, 1.57, -1.57, 0.0, 3.14, 1.571, 0.0],
+            "left_bins": [-3.25, 3.0, -1.57, 1.57, -1.57, 0.0, 3.14, 1.571, 0.0],
+            "right_bins": [-3.25, -3.0, -1.57, 1.57, -1.57, 0.0, 3.14, 1.571, 0.0],
         }
         for i in range(1, 5):
             self._ceiling_joint_positions_arrs[f"agv{i}"] = [
-                2.0,
+                -2.67,
                 self._rail_positions[f"agv{i}"],
                 -1.57,
                 1.57,
@@ -476,6 +476,10 @@ class RobotController(Node):
             f"Picking {request.type}"
         )
 
+        self.get_logger().error("######################################")
+        self.get_logger().error("Floor Robot Started Pick Parts Request")
+        self.get_logger().error("######################################")
+
         # Initialize variables
         part_pose = request.pose
         bin_side = "left_bins" if part_pose.position.y < 0 else "right_bins"
@@ -612,6 +616,10 @@ class RobotController(Node):
         self.get_logger().info(
             f"Picking {request.type}"
         )
+
+        self.get_logger().error("######################################")
+        self.get_logger().error("Ceiling Robot Started Pick Parts Request")
+        self.get_logger().error("######################################")
 
         # Initialize variables
         part_pose = request.pose
@@ -2503,10 +2511,17 @@ class RobotController(Node):
                 robot_trajectory = plan_result.trajectory
 
             # Execute with appropriate controllers
-            robot.execute(
-                robot_trajectory,
-                controllers=["floor_robot_controller", "linear_rail_controller"],
-            )
+            
+            if robot_type == "floor_robot":
+                robot.execute(
+                    robot_trajectory,
+                    controllers=["floor_robot_controller", "linear_rail_controller"],
+                )
+            elif robot_type == "ceiling_robot":
+                robot.execute(
+                    robot_trajectory,
+                    controllers=["ceiling_robot_controller", "gantry_controller"],
+                )                
 
             exec_time = time.time() - exec_start
             logger.debug(f"Execution took {exec_time:.3f} seconds")
@@ -3139,7 +3154,7 @@ class RobotController(Node):
 
     def _move_ceiling_robot_to_joint_position(self, position_name: str):
 
-        self.get_logger().info(f"Moving to position: {position_name}")
+        self.get_logger().info(f"Moving Ceiling Robot to position: {position_name}")
 
         try:
             with self._planning_scene_monitor.read_write() as scene:
@@ -3150,7 +3165,7 @@ class RobotController(Node):
                 if position_name == "home":
                     # For home, we use predefined values
                     home_values = {
-                        "gantry_x_axis_joint": 2.0,
+                        "gantry_x_axis_joint": -4.999977,
                         "gantry_y_axis_joint": 0.0,
                         "gantry_rotation_joint": -1.571,
                         "ceiling_elbow_joint": 1.571,

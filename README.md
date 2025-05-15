@@ -12,9 +12,9 @@ The goal is to manage an ARIAC competition environment using **ROS 2** and **Gaz
 - Start ARIAC competition.
 - Receive and parse orders.
 - Detect trays using ArUco markers and estimate their poses.
-- Detect and track parts (**purple pumps** and **blue batteries**) moving along the conveyor using an RGB camera.
-- Predict future poses of moving conveyor parts based on belt speed.
-- Log the required tray and part information **only once** per item.
+- Detect and track parts (**purple pumps**, **purple pumps** and **blue batteries**) in the bin using an RGB camera.
+- Pick and place parts to the AGV by ceiling and floor robots.
+- Send AGV with parts to the warehouse.
 - End ARIAC competition.
 
 # Prerequisites
@@ -24,16 +24,16 @@ The goal is to manage an ARIAC competition environment using **ROS 2** and **Gaz
 - ARIAC packages cloned and built in workspace
 
 # launch
-1. Build the workspace:
+1. The robot_controller_node python node may not build depending on computer configuration.
+    Run this from src/group2_ariac and rebuild if it did not build the first time
+        chmod +x group2_ariac/group2_ariac/robot_controller_node.py
+
+2. Build the workspace:
     colcon build --symlink-install
     source install/setup.bash
 
-2. Launch ARIAC
+3. Launch ARIAC
     ros2 launch ariac_gazebo ariac.launch.py competitor_pkg:=group2_ariac trial_name:=final_project
 
-3. Run nodes
+4. Run nodes
     ros2 launch group2_ariac group2_ariac.launch.py
-
-4. The robot_controller_node python node may not build depending on computer configuration.
-    Run this from src/group2_ariac and rebuild if it did not build the first time
-        chmod +x group2_ariac/group2_ariac/robot_controller_node.py

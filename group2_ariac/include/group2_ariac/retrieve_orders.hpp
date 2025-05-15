@@ -1,6 +1,12 @@
 /**
  * @file retrieve_orders.hpp
- * @brief Defines classes for managing parts, kitting, assembly, and order retrieval in an ROS 2 environment.
+ * 
+ * @brief Defines classes for managing parts, kitting, assembly, and order retrieval in an ROS 2 environment.2
+ * @version 0.2
+ * @date 2025-05-15
+ *
+ * @copyright Copyright (c) 2025
+ *
  */
 
 #pragma once

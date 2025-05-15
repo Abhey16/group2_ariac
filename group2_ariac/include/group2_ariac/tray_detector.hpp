@@ -3,6 +3,9 @@
  * @author Abhey Sharma (abheys16@umd.edu)
  * @brief Header file for the TrayDetector class that detects ArUco markers on trays from RGB images
  *        and estimates their poses relative to the camera and world frame using KDL and OpenCV.
+ * @version 0.2
+ * @date 2025-05-15
+ * 
  */
 
 #pragma once

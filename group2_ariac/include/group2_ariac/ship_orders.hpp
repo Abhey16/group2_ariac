@@ -2,8 +2,8 @@
  * @file ship_orders.hpp
  * @author Rey Roque-Perez (reyroque@umd.com)
  * @brief Class definition for the Ship Orders class
- * @version 0.1
- * @date 2025-03-30
+ * @version 0.2
+ * @date 2025-05-15
  *
  * @copyright Copyright (c) 2025
  *

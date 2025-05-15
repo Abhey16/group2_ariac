@@ -2,7 +2,8 @@
  * @file bin_parts_detector.hpp
  * @author Rey Roque-Perez (reyroque@umd.edu)
  * @brief Class definition for the BinPartsDetector class
- * @version 0.1
+ * @version 0.2
+ * @date 2025-05-15
  *
  * @copyright Copyright (c) 2025
  *

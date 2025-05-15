@@ -1,0 +1,24 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/rey/ariac_ws/install/moveit_demo/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/group2_ariac/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/group2_msgs/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/frame_demo/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/ariac_tutorials/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/ariac_gui/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/ariac_msgs/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/ariac_gazebo/lib/python3.10/site-packages",
+        "/opt/ros/iron/lib/python3.10/site-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/rey/ariac_ws/install/moveit_demo/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/group2_ariac/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/group2_msgs/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/frame_demo/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/ariac_tutorials/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/ariac_gui/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/ariac_msgs/lib/python3.10/site-packages",
+        "/home/rey/ariac_ws/install/ariac_gazebo/lib/python3.10/site-packages",
+        "/opt/ros/iron/lib/python3.10/site-packages"
+    ]
+}

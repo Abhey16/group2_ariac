@@ -96,7 +96,7 @@ public:
      * @param z Z position in camera frame.
      * @param kdl_camera_world KDL frame representing the camera pose in world frame.
      */
-    void part_world(const geometry_msgs::msg::Quaternion &q, const double &x, const double &y, const double &z, const KDL::Frame &kdl_camera_world);
+    geometry_msgs::msg::Pose part_world(const geometry_msgs::msg::Quaternion &q, const double &x, const double &y, const double &z, const KDL::Frame &kdl_camera_world);
 
     /**
      * @brief Converts a ROS geometry_msgs quaternion to a KDL rotation.

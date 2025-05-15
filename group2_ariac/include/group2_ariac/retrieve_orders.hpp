@@ -13,6 +13,8 @@
 #include "ariac_msgs/msg/order.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/vector3.hpp"
+#include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/int8.hpp>
 #include "ariac_msgs/msg/advanced_logical_camera_image.hpp"
 #include "ariac_msgs/msg/kit_tray_pose.hpp"
 #include "geometry_msgs/msg/pose.hpp"
@@ -20,7 +22,8 @@
 #include "geometry_msgs/msg/quaternion.hpp"
 #include "group2_msgs/msg/part.hpp"
 #include "group2_msgs/msg/part_list.hpp"
- 
+#include "group2_msgs/srv/pose.hpp"
+
  /**
   * @class Part
   * @brief Represents a part with a specific color and type.
@@ -482,6 +485,46 @@ private:
     CombinedTask combined_task;
 };
 
+class Task
+{
+    public:
+        Task(const std::string &type, const geometry_msgs::msg::Pose &pose, const int32_t &agv_number)
+        {   
+            object_type = type;
+            object_pose = pose;
+            object_agv = agv_number;
+        }
+        Task(const std::string &type, const geometry_msgs::msg::Pose &pose, std::string &quadrant,const int32_t &agv_number)
+        {   
+            object_type = type;
+            object_pose = pose;
+            object_quadrant = quadrant;
+            object_agv = agv_number;
+        }
+
+        // move
+
+        // pick
+
+        // place
+
+        // function to perform above in sequence
+
+        const geometry_msgs::msg::Pose &get_pose() const {return object_pose;}
+        const std::string &get_type() const {return object_type;}
+        const int32_t &get_agv() const {return object_agv;}
+        const std::string &get_quadrant() const {return object_quadrant;}
+        
+    private:
+        std::string object_type;
+        geometry_msgs::msg::Pose object_pose{};
+        int32_t object_agv;
+        std::string object_quadrant;
+
+
+};
+
+
  /**
   * @class RetrieveOrders
   * @brief A ROS 2 node for retrieving and managing orders.
@@ -513,12 +556,25 @@ public:
             std::bind(&RetrieveOrders::conveyor_part_callback, this,
                         std::placeholders::_1)); 
 
+        // Publisher for ship_agv
+        ship_agv_pub_ = this->create_publisher<std_msgs::msg::Bool>("/group2_ariac/ship_agv", 10);
+
+        // Publisher for current_agv
+        current_agv_pub_ = this->create_publisher<std_msgs::msg::Int8>("/group2_ariac/current_agv", 10);
+
         // RCLCPP_INFO(this->get_logger()," tray subscriber created");
 
         // Create the timer callback function
-        timer_ = this->create_wall_timer(
+        order_timer_ = this->create_wall_timer(
             std::chrono::seconds(5),  // every 5 seconds
             std::bind(&RetrieveOrders::order_processing_callback, this));
+        
+        // Create the timer callback function
+        // task_timer_ = this->create_wall_timer(
+        //     std::chrono::seconds(1),  // every 1 seconds
+        //     std::bind(&RetrieveOrders::task_processing, this));
+        
+        move_it_client_ = this->create_client<group2_msgs::srv::Pose>("move_it_pose");
 
     }
 
@@ -548,15 +604,29 @@ public:
 
     // Pops and returns the next priority order
     Order pop_priority_order();
+    
+    Order get_priority_order();
 
     // Pops and returns the next normal order
     Order pop_normal_order();
 
-    void log_tray_poses(const Order& current_order);
+    Order get_normal_order();
 
-    void log_bin_parts(const Order& current_order);
+    void get_tray_poses(const Order& current_order);
 
-    void log_conveyor_parts(const Order& current_order);    
+    void get_bin_parts(const Order& current_order);
+
+    void get_conveyor_parts(const Order& current_order);
+    
+    geometry_msgs::msg::Pose parts_pose_to_geometry(const group2_msgs::msg::Part &part_pose);
+
+    void task_processing();
+
+    void move_it_pose(std::string type,geometry_msgs::msg::Pose pose, int32_t agv);
+
+    void move_it_pose(std::string type,geometry_msgs::msg::Pose pose, std::string quadrant, int32_t agv);
+
+    void callback_move_it_pose(rclcpp::Client<group2_msgs::srv::Pose>::SharedFuture future);
 
 private:
     // order_subscriber_
@@ -574,9 +644,15 @@ private:
 
     ///< Queue storing high priority orders.
     std::queue<Order> priority_orders;
+
+    // Queue storing the task for the bot
+    std::queue<Task> task_queue;
     
     // timer callback
-    rclcpp::TimerBase::SharedPtr timer_;
+    rclcpp::TimerBase::SharedPtr order_timer_;
+
+    // timer callback
+    rclcpp::TimerBase::SharedPtr task_timer_;
 
     ariac_msgs::msg::AdvancedLogicalCameraImage latest_tray_pose_;
 
@@ -591,4 +667,18 @@ private:
     bool conveyor_parts_received_ = false; 
     
     bool parts_found_ = false;
+
+    bool ongoing_order_ = false;
+
+    bool  ongoing_task_ = false;
+
+    bool current_priority = false;
+
+    rclcpp::Client<group2_msgs::srv::Pose>::SharedPtr move_it_client_;
+
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr ship_agv_pub_;
+    rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr current_agv_pub_;    
+
+    int current_agv_;
+
 };

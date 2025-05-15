@@ -11,67 +11,37 @@
 
 #include "ship_orders.hpp"
 
-// Callback function to read and save incoming orders
-void ShipOrders::order_callback(const ariac_msgs::msg::Order::SharedPtr msg)
+void ShipOrders::ship_agv_cb(const std_msgs::msg::Bool::SharedPtr msg)
 {
-    // Push order to orders_ vector
-    orders_.push_back(*msg);
-
-    // Start the process_timer_ if we received the first order
-    if (!first_order_received_) {
-        first_order_received_ = true;
-
-        process_timer_ = this->create_wall_timer(
-            std::chrono::seconds(35),
-            std::bind(&ShipOrders::process_orders, this));
-    }
+    ship_agv_ = msg->data;
 }
 
-// Sort and start shipping orders
-void ShipOrders::process_orders()
+void ShipOrders::current_agv_cb(const std_msgs::msg::Int8::SharedPtr msg)
 {
-    process_timer_->cancel();
-
-    // Return if orders_ is empty
-    if (orders_.empty()) {
-        RCLCPP_WARN(this->get_logger(), "Timer expired and no orders were received");
-        return;
-    }
-
-    // Sort the orders
-    std::sort(orders_.begin(), orders_.end(),
-        [](const ariac_msgs::msg::Order &a, const ariac_msgs::msg::Order &b) {
-            return a.priority > b.priority;
-        });
-
-    // Start processing the orders in the sorted vector
-    current_order_index_ = 0;
-    process_next_order();
+    agv_number_ = msg->data;
 }
 
-// Locks the tray and moves the AVG for the orders
-void ShipOrders::process_next_order()
+// Ship orders
+void ShipOrders::ship_orders_timer()
 {
-    // Return once orders have been processed
-    if (current_order_index_ >= orders_.size()) {
-        RCLCPP_INFO(this->get_logger(), "Orders processed.");
-        return;
+    if (ship_agv_ && agv_number_ != 0)
+    {    
+        int agv_num = agv_number_;       // agv id
+        int destination = 3;  // warehouse
+
+        RCLCPP_INFO(this->get_logger(), "Moving AGV%d to warehouse",
+                    agv_num);
+        
+        // Lock the tray
+        lock_tray(agv_num, destination);
+        ship_agv_ = false;
+        agv_number_ = 0;
     }
-
-    const auto &order = orders_[current_order_index_];
-    int agv_num = order.kitting_task.agv_number;       // agv id
-    int destination = order.kitting_task.destination;  // order destination
-
-    RCLCPP_INFO(this->get_logger(), "Shipping Order '%s' on AGV%d",
-                order.id.c_str(), agv_num);
-
-    // Lock the tray
-    lock_tray(agv_num, destination);
 }
 
 // Lock the tray for the current order in place
 void ShipOrders::lock_tray(int agv_num, int destination)
-{
+{   
     // Check if service exists and creates one if necessary
     if (tray_clients_.find(agv_num) == tray_clients_.end()) {
         std::string service_name = "/ariac/agv" + std::to_string(agv_num) + "_lock_tray";
@@ -98,8 +68,6 @@ void ShipOrders::lock_tray(int agv_num, int destination)
             } else // Failed to lock tray 
             {
                 RCLCPP_WARN(this->get_logger(), "Failed to lock tray on AGV%d", agv_num);
-                current_order_index_++;
-                this->process_next_order();
             }
         });
 }
@@ -132,10 +100,6 @@ void ShipOrders::move_agv(int agv_num, int destination)
             {
                 RCLCPP_WARN(this->get_logger(), "Move AGV%d to destination failed %d", agv_num, destination);
             }
-            
-            // Add one to the order index and continue to the next order
-            current_order_index_++;
-            this->process_next_order();
         });
 }
 

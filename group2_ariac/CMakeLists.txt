@@ -39,6 +39,9 @@ ament_target_dependencies(start_competition_node rclcpp std_srvs ariac_msgs)
 add_executable(retrieve_orders src/retrieve_orders.cpp)
 ament_target_dependencies(retrieve_orders rclcpp ariac_msgs group2_msgs)
 
+add_executable(server src/test_server.cpp)
+ament_target_dependencies(server rclcpp ariac_msgs group2_msgs)
+
 add_executable(ship_orders src/ship_orders.cpp)
 ament_target_dependencies(ship_orders rclcpp ariac_msgs std_srvs)
 
@@ -60,6 +63,7 @@ ament_target_dependencies(conveyor_tracker_node rclcpp ariac_msgs sensor_msgs cv
 install(TARGETS
         start_competition_node
         retrieve_orders
+        server
         ship_orders
         complete_orders
         end_competition_node
@@ -73,6 +77,7 @@ install(DIRECTORY
         launch
         config
         resources
+        meshes
         DESTINATION share/${PROJECT_NAME}
         )
 
@@ -84,5 +89,12 @@ install(DIRECTORY
 # Install Python modules
 ament_python_install_package(${PROJECT_NAME} 
   SCRIPTS_DESTINATION lib/${PROJECT_NAME})
+
+install(
+  PROGRAMS
+  # group2_ariac/python_logger_node.py
+  group2_ariac/robot_controller_node.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 ament_package()

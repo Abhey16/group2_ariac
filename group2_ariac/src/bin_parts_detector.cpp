@@ -5,6 +5,7 @@ void BinPartsDetector::bin_left_cb(sensor_msgs::msg::Image::ConstSharedPtr img)
 {
     bin_left_rgb_ = cv_bridge::toCvShare(img, "bgr8")->image;
     left_image_ready_ = true;
+    // RCLCPP_INFO(this->get_logger(), "L image received");
 }
 
 // Right Camera Callback
@@ -12,19 +13,23 @@ void BinPartsDetector::bin_right_cb(sensor_msgs::msg::Image::ConstSharedPtr img)
 {
     bin_right_rgb_ = cv_bridge::toCvShare(img, "bgr8")->image;
     right_image_ready_ = true;
+    // RCLCPP_INFO(this->get_logger(), "R image received");
 }
 
 // Callback that initiates part detection
 void BinPartsDetector::detect_parts_cb()
 {
+    // RCLCPP_INFO(this->get_logger(), "detect_parts_cb called");
     // Don't do anything if we haven't received an image
     if (!(left_image_ready_ && right_image_ready_))
     {
         // RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
         //                      "Waiting for both images to be received...");
+
+        // RCLCPP_WARN(this->get_logger(), "Waiting for both images to be received...");
         return;
     }
-
+    // RCLCPP_INFO(this->get_logger(), "Both images ready, starting part detection");
     // Reset flags immediately to wait for next valid pair
     left_image_ready_ = false;
     right_image_ready_ = false;
@@ -102,6 +107,7 @@ void BinPartsDetector::get_bin_parts(const int &bin_number)
         double depth = 1.02; // Estimate
 
         // Loop through every detection and find their world poses
+        // RCLCPP_INFO(this->get_logger(), "For loop, bin %d", bin_number);
         for (const auto &[color, type_map] : part_roi_coordinates_)
         {
             for (const auto &[type, centers] : type_map)
@@ -150,9 +156,10 @@ void BinPartsDetector::find_parts(const cv::Mat &img)
 
     // HSV Mask Color Bounds
     std::map<std::string, std::pair<cv::Scalar, cv::Scalar>> hsv_colors{
-        {"red", {cv::Scalar(0, 120, 70), cv::Scalar(10, 255, 255)}},
+        {"red", {cv::Scalar(0, 100, 100), cv::Scalar(10, 255, 255)}},
         {"green", {cv::Scalar(40, 70, 70), cv::Scalar(85, 255, 255)}},
-        {"blue", {cv::Scalar(100, 150, 0), cv::Scalar(130, 255, 255)}},
+        {"blue", {cv::Scalar(110, 100, 50), cv::Scalar(130, 255, 200)}},
+        // {"blue", {cv::Scalar(100, 150, 0), cv::Scalar(130, 255, 255)}},
         {"orange", {cv::Scalar(10, 150, 150), cv::Scalar(25, 255, 255)}},
         {"purple", {cv::Scalar(130, 50, 50), cv::Scalar(160, 255, 255)}}};
 
@@ -163,6 +170,11 @@ void BinPartsDetector::find_parts(const cv::Mat &img)
         cv::Mat img_mask;
         cv::inRange(img_hsv, bounds.first, bounds.second, img_mask);
 
+
+            // if (color == "red") {
+            //     RCLCPP_INFO(this->get_logger(), " red mask non-zero pixels: %d", cv::countNonZero(img_mask));
+            //     cv::imwrite("/tmp/red_mask.png", img_mask);  
+            // }
         // Run template matching for each part type
         for (const auto &type : types_)
         {
@@ -170,6 +182,8 @@ void BinPartsDetector::find_parts(const cv::Mat &img)
             match_template(img_mask, color, type);
         }
     }
+
+
 }
 
 // Match a detected part to a part type using a template
@@ -177,6 +191,8 @@ void BinPartsDetector::match_template(const cv::Mat &img_mask,
                                       const std::string &color,
                                       const std::string &type)
 {
+
+    
     cv::Mat template_img;
     if (type == "pump")
         template_img = pump_template_;
@@ -189,6 +205,12 @@ void BinPartsDetector::match_template(const cv::Mat &img_mask,
     else
         return;
 
+    // if (color == "red" && type == "regulator") {
+    //     cv::imwrite("/tmp/red_regulator_template.png", template_img);
+    //     cv::imwrite("/tmp/red_regulator_mask.png", img_mask);
+    //     RCLCPP_WARN(this->get_logger(), " Exported template + mask for blue sensor to /tmp");
+    // }
+    
     int tH = template_img.rows;
     int tW = template_img.cols;
 
@@ -205,6 +227,7 @@ void BinPartsDetector::match_template(const cv::Mat &img_mask,
             if (confidence >= 0.80f)
             {
                 raw_matches.emplace_back(x, y, tW, tH);
+                // RCLCPP_INFO(this->get_logger(), "Match: %s %s score=%.2f", color.c_str(), type.c_str(), confidence);
             }
         }
     }

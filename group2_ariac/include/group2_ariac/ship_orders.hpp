@@ -13,7 +13,8 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <std_srvs/srv/trigger.hpp>
-#include <ariac_msgs/msg/order.hpp>
+#include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/int8.hpp>
 #include <ariac_msgs/srv/move_agv.hpp>
 
 #include <vector>
@@ -26,33 +27,40 @@
 class ShipOrders : public rclcpp::Node
 {
 public:
-    ShipOrders() : Node("ship_orders"), current_order_index_(0), first_order_received_(false)
+    ShipOrders() : Node("ship_orders"), ship_agv_(false), agv_number_(0)
     {
-        // Subscriber for published orders
-        order_sub_ = this->create_subscription<ariac_msgs::msg::Order>(
-            "/ariac/orders", 10,
-            std::bind(&ShipOrders::order_callback, this, std::placeholders::_1));
+        // Subscriber for ship_agv
+        ship_agv_sub_ = this->create_subscription<std_msgs::msg::Bool>(
+            "/group2_ariac/ship_agv", 10,
+            std::bind(&ShipOrders::ship_agv_cb, this, std::placeholders::_1));
+
+        // Subscriber for current_agv
+        current_agv_sub_ = this->create_subscription<std_msgs::msg::Int8>(
+            "/group2_ariac/current_agv", 10,
+            std::bind(&ShipOrders::current_agv_cb, this, std::placeholders::_1));
+
+        timer_ = this->create_wall_timer(
+            std::chrono::milliseconds(500),
+            std::bind(&ShipOrders::ship_orders_timer, this));
 
         RCLCPP_INFO(this->get_logger(), "Ship Orders Node Initialized");
     }
 
 private:
     /**
-     * @brief Callback function to read incoming orders
-     * 
-     * @param msg [const ariac_msgs::msg::Order::SharedPtr] Order message
+     * @brief Callback for group2_ariac/ship_agv subscribtion
      */
-    void order_callback(const ariac_msgs::msg::Order::SharedPtr msg);
+    void ship_agv_cb(const std_msgs::msg::Bool::SharedPtr msg);
 
     /**
-     * @brief Method used to process the orders vector
+     * @brief Callback for group2_ariac/current_agv subscribtion
      */
-    void process_orders();
+    void current_agv_cb(const std_msgs::msg::Int8::SharedPtr msg);    
 
     /**
-     * @brief Method to process an individual order
+     * @brief Method used to ship the orders
      */
-    void process_next_order();
+    void ship_orders_timer();
 
     /**
      * @brief Method to lock an AGV's tray
@@ -71,14 +79,19 @@ private:
     void move_agv(int agv_num, int destination);
 
     /**
-     * @brief Subscription to ariac/orders
+     * @brief Subscription to group2_ariac/ship_agv
      */
-    rclcpp::Subscription<ariac_msgs::msg::Order>::SharedPtr order_sub_;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr ship_agv_sub_;
 
     /**
-     * @brief Timer used to start processing the orders
+     * @brief Subscription to group2_ariac/current_agv
      */
-    rclcpp::TimerBase::SharedPtr process_timer_;
+    rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr current_agv_sub_;
+
+    /**
+     * @brief 
+     */
+    rclcpp::TimerBase::SharedPtr timer_;
 
     /**
      * @brief Clients to start lock services
@@ -91,18 +104,13 @@ private:
     std::unordered_map<int, rclcpp::Client<ariac_msgs::srv::MoveAGV>::SharedPtr> move_clients_;
 
     /**
-     * @brief Vector to store order messages
+     * @brief Flag to start moving agv
      */
-    std::vector<ariac_msgs::msg::Order> orders_;
-
-    /**
-     * @brief Stores the index of the current order being processed
-     */
-    size_t current_order_index_;
-
-    /**
-     * @brief Flag to start processing orders
-     */
-    bool first_order_received_;
+    bool ship_agv_;
     
+    /**
+     * @brief agv id
+     */
+    int agv_number_;
+
 }; // class ShipOrders

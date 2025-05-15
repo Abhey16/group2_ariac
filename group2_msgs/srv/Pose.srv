@@ -1,0 +1,6 @@
+string type
+geometry_msgs/Pose pose
+int32 agv_number
+string quadrant
+---
+bool status

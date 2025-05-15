@@ -131,6 +131,8 @@ void RetrieveOrders::order_processing_callback()
             // Ongoing order
             ongoing_order_ = true;
 
+            current_agv_ = current_order.get_kitting_task().get_agv_number();
+
             // get the tray pose from subscriber
             // if (tray_pose_received_ && bin_parts_received_)
             if (!latest_tray_pose_.tray_poses.empty()) {
@@ -183,6 +185,8 @@ void RetrieveOrders::order_processing_callback()
             // Ongoing order
             ongoing_order_ = true;
             
+            current_agv_ = current_order.get_kitting_task().get_agv_number();
+
             // RCLCPP_INFO(this->get_logger(), "tray_pose_received_ : %d", !latest_tray_pose_.tray_poses.empty());
             if (!latest_tray_pose_.tray_poses.empty()) {
                 RetrieveOrders::get_tray_poses(current_order);
@@ -502,6 +506,16 @@ void RetrieveOrders::task_processing()
     {
         RCLCPP_INFO(this->get_logger(), "All tasks for the current order completed.");
 
+        std_msgs::msg::Int8 agv_msg;
+        agv_msg.data = current_agv_;
+        current_agv_pub_->publish(agv_msg); 
+
+        std_msgs::msg::Bool ship_msg;
+        ship_msg.data = true;
+        ship_agv_pub_->publish(ship_msg);       
+
+        current_agv_ = 0;
+        
         // Pop the order from the queue after all tasks are processed
         if (current_priority)
         {

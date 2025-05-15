@@ -13,6 +13,8 @@
 #include "ariac_msgs/msg/order.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/vector3.hpp"
+#include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/int8.hpp>
 #include "ariac_msgs/msg/advanced_logical_camera_image.hpp"
 #include "ariac_msgs/msg/kit_tray_pose.hpp"
 #include "geometry_msgs/msg/pose.hpp"
@@ -554,6 +556,12 @@ public:
             std::bind(&RetrieveOrders::conveyor_part_callback, this,
                         std::placeholders::_1)); 
 
+        // Publisher for ship_agv
+        ship_agv_pub_ = this->create_publisher<std_msgs::msg::Bool>("/group2_ariac/ship_agv", 10);
+
+        // Publisher for current_agv
+        current_agv_pub_ = this->create_publisher<std_msgs::msg::Int8>("/group2_ariac/current_agv", 10);
+
         // RCLCPP_INFO(this->get_logger()," tray subscriber created");
 
         // Create the timer callback function
@@ -667,5 +675,10 @@ private:
     bool current_priority = false;
 
     rclcpp::Client<group2_msgs::srv::Pose>::SharedPtr move_it_client_;
+
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr ship_agv_pub_;
+    rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr current_agv_pub_;    
+
+    int current_agv_;
 
 };

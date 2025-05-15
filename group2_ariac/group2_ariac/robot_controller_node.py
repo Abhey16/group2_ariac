@@ -193,6 +193,8 @@ class RobotController(Node):
         self._conveyor_part_detected = []
         self._floor_robot_gripper_state = None
         self._floor_robot_attached_part = None
+        self._ceiling_robot_gripper_state = None
+        self._ceiling_robot_attached_part = None
         self._order_planning_scene_objects = []
         self._kts1_camera_received_data = False
         self._kts2_camera_received_data = False
@@ -241,6 +243,32 @@ class RobotController(Node):
             for key in self._floor_joint_positions_arrs.keys()
         }
 
+        self._ceiling_joint_positions_arrs = {
+            "floor_kts1_js_": [2.0, 4.0, -1.57, 1.57, -1.57, 0.0, 3.14, 1.571, 0.0],
+            "floor_kts2_js_": [2.0, -4.0, -1.57, 1.57, -1.57, 0.0, 3.14, 1.571, 0.0],
+            "left_bins": [2.0, 3.0, -1.57, 1.57, -1.57, 0.0, 3.14, 1.571, 0.0],
+            "right_bins": [2.0, -3.0, -1.57, 1.57, -1.57, 0.0, 3.14, 1.571, 0.0],
+        }
+        for i in range(1, 5):
+            self._ceiling_joint_positions_arrs[f"agv{i}"] = [
+                2.0,
+                self._rail_positions[f"agv{i}"],
+                -1.57,
+                1.57,
+                -1.57,
+                0.0,
+                3.14,
+                1.57,
+                0.0
+            ]
+            
+        self._ceiling_position_dict = {
+            key: self._create_ceiling_joint_position_state(
+                self._ceiling_joint_positions_arrs[key]
+            )
+            for key in self._ceiling_joint_positions_arrs.keys()
+        }
+
         # ----------------------------------------------------------------------
         # ROS 2 Communication
         # ----------------------------------------------------------------------
@@ -255,11 +283,16 @@ class RobotController(Node):
         self._floor_gripper_enable = self.create_client(
             VacuumGripperControl, "/ariac/floor_robot_enable_gripper"
         )
+        
+        self._ceiling_gripper_enable = self.create_client(
+            VacuumGripperControl, "/ariac/ceiling_robot_enable_gripper"
+        )
         self._change_gripper_client = self.create_client(
             ChangeGripper,
             "/ariac/floor_robot_change_gripper",
             callback_group=self._reentrant_cb_group,
         )
+
         self._get_cartesian_path_client = self.create_client(
             GetCartesianPath,
             "compute_cartesian_path",
@@ -289,12 +322,20 @@ class RobotController(Node):
             callback_group=self._reentrant_cb_group,
         )
 
+        self._ceiling_robot_gripper_state_sub = self.create_subscription(
+            VacuumGripperState,
+            "/ariac/ceiling_robot_gripper_state",
+            self._ceiling_robot_gripper_state_cb,
+            qos_profile_sensor_data,
+            callback_group=self._reentrant_cb_group,
+        )
         # ----------------------------------------------------------------------
         # MoveIt 2 Setup
         # ----------------------------------------------------------------------
         self._ariac_robots = MoveItPy(node_name="ariac_robots_moveit_py")
         self._ariac_robots_state = RobotState(self._ariac_robots.get_robot_model())
         self._floor_robot = self._ariac_robots.get_planning_component("floor_robot")
+        self._ceiling_robot = self._ariac_robots.get_planning_component("ceiling_robot")
         self._planning_scene_monitor = self._ariac_robots.get_planning_scene_monitor()
 
         # ----------------------------------------------------------------------
@@ -357,6 +398,9 @@ class RobotController(Node):
         request.type = request.type.lower()
         
         bin_side = "back_bins" if request.pose.position.x < -2.275000 else "front_bins"
+        self.get_logger().error(f"##################")
+        self.get_logger().error(f"bin type {bin_side}")
+        self.get_logger().error(f"##################")
         
         # Floor robot parts
         if bin_side == "front_bins":
@@ -383,15 +427,29 @@ class RobotController(Node):
             self.get_logger().error(f"Invalid quadrant format: {request.quadrant}")
             return  # or raise, or set a default
 
-        success = self._floor_robot_place_part_on_kit_tray_request(request, agv_num, quadrant)
+                
+        # Floor robot parts
+        if bin_side == "front_bins":
+            success = self._floor_robot_place_part_on_kit_tray_request(request, agv_num, quadrant)
+            
+            if success:
+                self.get_logger().info("Successfully placed part on tray")
+            else:
+                self.get_logger().error("Failed to place part on tray")
+            
+            # Return to home position
+            self._move_floor_robot_to_joint_position("home")
 
-        if success:
-            self.get_logger().info("Successfully placed part on tray")
-        else:
-            self.get_logger().error("Failed to place part on tray")
-
-        # Return to home position
-        self._move_floor_robot_to_joint_position("home")
+        if bin_side == "back_bins":
+            success = self._ceiling_robot_place_part_on_kit_tray_request(request, agv_num, quadrant)
+            
+            if success:
+                self.get_logger().info("Successfully placed part on tray")
+            else:
+                self.get_logger().error("Failed to place part on tray")           
+            
+            # Return to home position
+            self._move_ceiling_robot_to_joint_position("home")
 
         return success
 
@@ -557,20 +615,21 @@ class RobotController(Node):
 
         # Initialize variables
         part_pose = request.pose
+        # not same as floor ?
         bin_side = "right_bins" if part_pose.position.y < 0 else "left_bins"
 
-        # GRIPPER PREPARATION PHASE - Skip if already using the right gripper
-        if self._floor_robot_gripper_state.type != "part_gripper":
-            # Determine which tool changer station to use
-            station = "kts1" if part_pose.position.y < 0 else "kts2"
+        # # GRIPPER PREPARATION PHASE - Skip if already using the right gripper
+        # if self._ceiling_robot_gripper_state.type != "part_gripper":
+        #     # Determine which tool changer station to use
+        #     station = "kts1" if part_pose.position.y < 0 else "kts2"
 
-            # Move to the tool changer and change gripper
-            self._move_floor_robot_to_joint_position(f"floor_{station}_js_")
-            self._floor_robot_change_gripper(station, "parts")
+        #     # Move to the tool changer and change gripper
+        #     self._move_floor_robot_to_joint_position(f"floor_{station}_js_")
+        #     self._floor_robot_change_gripper(station, "parts")
 
         # APPROACH PHASE - Faster approach
         # Move to the bin with the part
-        self._move_floor_robot_to_joint_position(bin_side)
+        self._move_ceiling_robot_to_joint_position(bin_side)
 
         # Calculate the proper orientation for the robot's gripper to pick up a part.
 
@@ -600,7 +659,7 @@ class RobotController(Node):
         # Lets the motion planner (MoveIt) determine the optimal path
         # The planner will typically find a path that's efficient in joint space, but the goal is specified in Cartesian space
         # Doesn't give explicit control over the path shape
-        self._move_floor_robot_to_pose(above_pose)
+        self._move_ceiling_robot_to_pose(above_pose)
 
         # PICKING PHASE - Getting closer to the part
         self.get_logger().info("Moving to grasp position")
@@ -619,13 +678,13 @@ class RobotController(Node):
         # Gives explicit control over velocity and acceleration
         # Can specify whether collision checking should be performed
         # Constraints the motion to follow a specific path, not just reach a goal
-        self._move_floor_robot_cartesian(waypoints, 0.3, 0.3, False)
+        self._move_ceiling_robot_cartesian(waypoints, 0.3, 0.3, False)
 
         # Enable gripper with less waiting
-        self._set_floor_robot_gripper_state(request, True)
+        self._set_ceiling_robot_gripper_state(request, True)
 
         try:
-            self._floor_robot_wait_for_attach(
+            self._ceiling_robot_wait_for_attach(
                 10.0, gripper_orientation
             )  # Reduced timeout
         except Error as e:
@@ -640,8 +699,8 @@ class RobotController(Node):
                     gripper_orientation,
                 )
             ]
-            self._move_floor_robot_cartesian(waypoints, 0.5, 0.5, False)
-            self._set_floor_robot_gripper_state(request, False)
+            self._move_ceiling_robot_cartesian(waypoints, 0.5, 0.5, False)
+            self._set_ceiling_robot_gripper_state(request, False)
             return False
 
         # RETREAT PHASE - Faster retreat
@@ -654,17 +713,17 @@ class RobotController(Node):
                 gripper_orientation,
             )
         ]
-        self._move_floor_robot_cartesian(waypoints, 0.2, 0.2, False)
+        self._move_ceiling_robot_cartesian(waypoints, 0.2, 0.2, False)
 
         # Return to bin position
-        self._move_floor_robot_to_joint_position(bin_side)
+        self._move_ceiling_robot_to_joint_position(bin_side)
 
         # SCENE UPDATE PHASE - Minimal planning scene updates
         # Just record the attached part internally for tracking
-        self._floor_robot_attached_part = request
+        self._ceiling_robot_attached_part = request
 
         # Only update planning scene if needed
-        self._attach_model_to_floor_gripper_request(request, part_pose)
+        # self._attach_model_to_floor_gripper_request(request, part_pose)
 
         return True
 
@@ -791,6 +850,130 @@ class RobotController(Node):
             self.get_logger().error(f"Error attaching model to gripper: {str(e)}")
             return False
 
+    # def _attach_model_to_ceiling_gripper_request(self, request, part_pose: Pose):
+    #     """
+    #     Attach a part model to the floor robot gripper in the planning scene.
+
+    #     This function creates a collision object for the part and attaches it
+    #     to the robot's gripper in the planning scene, enabling collision-aware
+    #     motion planning with the attached part.
+
+    #     Args:
+    #         part_to_pick (PartMsg): Part type and color information
+    #         part_pose (Pose): Position and orientation of the part
+
+    #     Returns:
+    #         bool: True if attachment succeeded, False otherwise
+    #     """
+    #     # Create a part name based on its color and type
+    #     part_name = (
+    #         request.type
+    #     )
+
+    #     # Always track the part internally
+    #     self._ceiling_robot_attached_part = request
+
+    #     # Get the path to the mesh file for the part
+    #     model_path = self._mesh_file_path + request.type + ".stl"
+
+    #     if not path.exists(model_path):
+    #         self.get_logger().error(f"Mesh file not found: {model_path}")
+    #         return False
+
+    #     try:
+    #         # Use a single planning scene operation for consistency
+    #         with self._planning_scene_monitor.read_write() as scene:
+    #             # Create the collision object
+    #             co = CollisionObject()
+    #             co.id = part_name
+    #             co.header.frame_id = "world"
+    #             co.header.stamp = self.get_clock().now().to_msg()
+
+    #             # Create the mesh
+    #             with pyassimp.load(model_path) as assimp_scene:
+    #                 if not assimp_scene.meshes:
+    #                     self.get_logger().error(f"No meshes found in {model_path}")
+    #                     return False
+
+    #                 mesh = Mesh()
+    #                 # Add triangles
+    #                 for face in assimp_scene.meshes[0].faces:
+    #                     triangle = MeshTriangle()
+    #                     if hasattr(face, "indices"):
+    #                         if len(face.indices) == 3:
+    #                             triangle.vertex_indices = [
+    #                                 face.indices[0],
+    #                                 face.indices[1],
+    #                                 face.indices[2],
+    #                             ]
+    #                             mesh.triangles.append(triangle)
+    #                     else:
+    #                         if len(face) == 3:
+    #                             triangle.vertex_indices = [face[0], face[1], face[2]]
+    #                             mesh.triangles.append(triangle)
+
+    #                 # Add vertices
+    #                 for vertex in assimp_scene.meshes[0].vertices:
+    #                     point = Point()
+    #                     point.x = float(vertex[0])
+    #                     point.y = float(vertex[1])
+    #                     point.z = float(vertex[2])
+    #                     mesh.vertices.append(point)
+
+    #             # Add the mesh to the collision object
+    #             co.meshes.append(mesh)
+    #             co.mesh_poses.append(part_pose)
+    #             co.operation = CollisionObject.ADD
+
+    #             # First add to world - this is important!
+    #             scene.apply_collision_object(co)
+
+    #             # Then create the attachment
+    #             aco = AttachedCollisionObject()
+    #             aco.link_name = "ceiling_gripper"
+    #             aco.object = co
+    #             aco.touch_links = [
+    #                 "floor_gripper",
+    #                 "floor_tool0",
+    #                 "floor_wrist_3_link",
+    #                 "floor_wrist_2_link",
+    #                 "floor_wrist_1_link",
+    #                 "floor_flange",
+    #                 "floor_ft_frame",
+    #             ]
+
+    #             # Update the state
+    #             scene.current_state.attachBody(
+    #                 part_name, "floor_gripper", aco.touch_links
+    #             )
+    #             scene.current_state.update()
+
+    #             # Make the attachment visible in the planning scene
+    #             ps = PlanningScene()
+    #             ps.is_diff = True
+    #             ps.robot_state.attached_collision_objects.append(aco)
+
+    #             # Remove from world collision objects since it's now attached
+    #             remove_co = CollisionObject()
+    #             remove_co.id = part_name
+    #             remove_co.operation = CollisionObject.REMOVE
+    #             ps.world.collision_objects.append(remove_co)
+
+    #             # Apply the complete scene update
+    #             scene.processPlanningSceneMsg(ps)
+
+    #             self._apply_planning_scene(scene)
+
+    #         self.get_logger().info(
+    #             f"Successfully attached {part_name} to floor gripper"
+    #         )
+    #         return True
+
+    #     except Exception as e:
+    #         self.get_logger().error(f"Error attaching model to gripper: {str(e)}")
+    #         return False
+        
+        
     def _floor_robot_place_part_on_kit_tray_request(self, request, agv_num, quadrant):
         """
         Place a part on a kit tray on the specified AGV in the given quadrant.
@@ -932,6 +1115,147 @@ class RobotController(Node):
             self.get_logger().error(f"Error placing part: {str(e)}")
             return False
 
+    def _ceiling_robot_place_part_on_kit_tray_request(self, request, agv_num, quadrant):
+        """
+        Place a part on a kit tray on the specified AGV in the given quadrant.
+
+        This function handles the complete process of:
+        1. Verifying a part is currently attached to the gripper
+        2. Validating AGV number and quadrant parameters
+        3. Moving to the AGV using joint space planning
+        4. Positioning the part above the target quadrant using Cartesian planning
+        5. Lowering the part into place on the tray
+        6. Releasing the part and retreating to a safe position
+
+        Args:
+            agv_num (int): AGV number (1-4) to place the part on
+            quadrant (int): Quadrant number (1-4) of the tray to place the part in
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        if (
+            not self._ceiling_robot_gripper_state
+            or not self._ceiling_robot_gripper_state.attached
+        ):
+            self.get_logger().error("No part attached")
+            return False
+
+        self.get_logger().info(f"Placing part on AGV {agv_num} in quadrant {quadrant}")
+
+        # Validate inputs
+        if agv_num < 1 or agv_num > 4:
+            self.get_logger().error(f"Invalid AGV number: {agv_num}")
+            return False
+
+        if quadrant < 1 or quadrant > 4:
+            self.get_logger().error(f"Invalid quadrant number: {quadrant}")
+            return False
+
+        # Move to AGV using planning scene monitor
+        with self._planning_scene_monitor.read_write() as scene:
+            # Set the start state
+            self._ceiling_robot.set_start_state(robot_state=scene.current_state)
+
+            # Create a new state for the goal
+            goal_state = copy(scene.current_state)
+
+            # Set joint positions manually
+            goal_state.joint_positions = {
+                "gantry_x_axis_joint": 2.0,
+                "gantry_y_axis_joint": self._rail_positions[f"agv{agv_num}"],
+                "gantry_rotation_joint": -1.571,
+                "ceiling_elbow_joint": 1.571,
+                "ceiling_shoulder_lift_joint": -1.571,
+                "ceiling_shoulder_pan_joint": 0.0,
+                "ceiling_wrist_1_joint": 3.14,
+                "ceiling_wrist_2_joint": -1.571,
+                "ceiling_wrist_3_joint": 0.0,               
+            }
+
+            # Create constraint
+            joint_constraint = construct_joint_constraint(
+                robot_state=goal_state,
+                joint_model_group=self._ariac_robots.get_robot_model().get_joint_model_group(
+                    "ceiling_robot"
+                ),
+            )
+
+            # Set goal
+            self._ceiling_robot.set_goal_state(motion_plan_constraints=[joint_constraint])
+
+        # Plan and execute
+        success = self._plan_and_execute(
+            self._ariac_robots, self._ceiling_robot, self.get_logger(), "ceiling_robot"
+        )
+
+        if not success:
+            self.get_logger().error("Failed to move to AGV")
+            return False
+
+        # Continue with placing the part...
+        try:
+            # Get the AGV tray pose
+            agv_tray_pose = self._frame_world_pose(f"agv{agv_num}_tray")
+
+            # Calculate drop position using quadrant offset
+            offset_x, offset_y = self._quad_offsets[quadrant]
+
+            # Create cartesian path to place the part
+            waypoints = []
+            waypoints.append(
+                build_pose(
+                    agv_tray_pose.position.x + offset_x,
+                    agv_tray_pose.position.y + offset_y,
+                    agv_tray_pose.position.z + 0.2,  # First move above
+                    quaternion_from_euler(0.0, pi, 0.0),
+                )
+            )
+
+            if not self._move_ceiling_robot_cartesian(waypoints, 0.3, 0.3, True):
+                self.get_logger().error("Failed to move above drop position")
+                return False
+
+            # Move down to place the part
+            waypoints = []
+            waypoints.append(
+                build_pose(
+                    agv_tray_pose.position.x + offset_x,
+                    agv_tray_pose.position.y + offset_y,
+                    agv_tray_pose.position.z + 0.15,  # Final placement position
+                    quaternion_from_euler(0.0, pi, 0.0),
+                )
+            )
+
+            if not self._move_ceiling_robot_cartesian(waypoints, 0.2, 0.2, True):
+                self.get_logger().error("Failed to move to place position")
+                return False
+
+            # Release part
+            self._set_ceiling_robot_gripper_state(request, False)
+            time.sleep(0.5)  # Wait for release
+
+            # Move up
+            waypoints = []
+            waypoints.append(
+                build_pose(
+                    agv_tray_pose.position.x + offset_x,
+                    agv_tray_pose.position.y + offset_y,
+                    agv_tray_pose.position.z + 0.2,
+                    quaternion_from_euler(0.0, pi, 0.0),
+                )
+            )
+
+            self._move_ceiling_robot_cartesian(waypoints, 0.3, 0.3, True)
+
+            self.get_logger().info(
+                f"Successfully placed part on AGV {agv_num} in quadrant {quadrant}"
+            )
+            return True
+
+        except Exception as e:
+            self.get_logger().error(f"Error placing part: {str(e)}")
+            return False
     def _pick_place_tray_request(self, request):
         """
         Execute tray pick and place operation.
@@ -1782,6 +2106,18 @@ class RobotController(Node):
             msg (VacuumGripperState): Message containing the current gripper state
         """
         self._floor_robot_gripper_state = msg
+    
+    def _ceiling_robot_gripper_state_cb(self, msg: VacuumGripperState):
+        """
+        Callback for the /ariac/ceiling_robot_gripper_state topic.
+
+        This function processes gripper state updates, storing the current
+        gripper state for use in decision making and planning.
+
+        Args:
+            msg (VacuumGripperState): Message containing the current gripper state
+        """
+        self._ceiling_robot_gripper_state = msg
 
     def _set_floor_robot_gripper_state(self, myrequest, state):
         """
@@ -1830,6 +2166,53 @@ class RobotController(Node):
         self._gripper_state_future = future
         return future
 
+    def _set_ceiling_robot_gripper_state(self, myrequest, state):
+        """
+        Control the floor robot gripper and update planning scene when detaching objects.
+
+        This function sends a service request to enable or disable the vacuum gripper.
+        When disabling the gripper, it also updates the planning scene to detach any
+        attached parts.
+
+        Args:
+            state (bool): True to enable the gripper, False to disable
+
+        Returns:
+            Future: The Future object for the service call, or None if the gripper
+                    is already in the requested state
+        """
+        if self._ceiling_robot_gripper_state.enabled == state:
+            self.get_logger().debug(f"Gripper is already {self._gripper_states[state]}")
+            return None
+
+        # If disabling the gripper and we have an attached part, detach it in the planning scene
+        if not state and self._ceiling_robot_attached_part is not None:
+            part_name = (
+                myrequest.type
+            )
+            self._detach_object_from_ceiling_gripper(part_name)
+            # Clear the attached part reference
+            self._ceiling_robot_attached_part = None
+
+        request = VacuumGripperControl.Request()
+        request.enable = state
+
+        # Store state for use in callback
+        self._pending_gripper_state = state
+
+        # Log at debug level instead of info
+        self.get_logger().debug(
+            f"Changing gripper state to {self._gripper_states[state]}"
+        )
+
+        # Use call_async with a callback
+        future = self._ceiling_gripper_enable.call_async(request)
+        future.add_done_callback(self._gripper_state_callback)
+
+        # Store and return the future
+        self._gripper_state_future = future
+        return future
+    
     def _gripper_state_callback(self, future):
         """
         Callback for gripper state change service response.
@@ -1899,6 +2282,54 @@ class RobotController(Node):
             self.get_logger().error(f"Failed to execute cartesian path: {str(e)}")
             return False
 
+    def _move_ceiling_robot_cartesian(
+        self, waypoints, velocity, acceleration, avoid_collision=True
+    ):
+        """
+        Move the floor robot along a Cartesian path with optimized speed.
+
+        This function plans and executes a Cartesian path through the specified
+        waypoints, applying velocity and acceleration scaling factors for
+        performance optimization.
+
+        Args:
+            waypoints (list): List of Pose objects defining the path
+            velocity (float): Maximum velocity scaling factor (0.0-1.0)
+            acceleration (float): Maximum acceleration scaling factor (0.0-1.0)
+            avoid_collision (bool, optional): Whether to avoid collisions during
+                                              path planning. Defaults to True.
+
+        Returns:
+            bool: True if path execution succeeded, False otherwise
+        """
+        # Increase default velocity and acceleration for faster movement
+        velocity = max(0.5, velocity)  # Minimum velocity scaling of 0.5
+        acceleration = max(0.5, acceleration)  # Minimum acceleration scaling of 0.5
+
+        # Get the trajectory
+        trajectory_msg = self._call_get_cartesian_path(
+            waypoints, velocity, acceleration, avoid_collision, "ceiling_robot"
+        )
+
+        if trajectory_msg is None:
+            self.get_logger().error("Failed to compute cartesian path")
+            return False
+
+        # Execute the trajectory
+        with self._planning_scene_monitor.read_write() as scene:
+            trajectory = RobotTrajectory(self._ariac_robots.get_robot_model())
+            trajectory.set_robot_trajectory_msg(scene.current_state, trajectory_msg)
+            trajectory.joint_model_group_name = "ceiling_robot"
+            scene.current_state.update(True)
+            self._ariac_robots_state = scene.current_state
+
+        try:
+            self._ariac_robots.execute(trajectory, controllers=[])
+            return True
+        except Exception as e:
+            self.get_logger().error(f"Failed to execute cartesian path: {str(e)}")
+            return False
+        
     def _execute_cartesian_trajectory(self, trajectory_msg):
         """
         Execute a pre-computed Cartesian trajectory.
@@ -2131,6 +2562,49 @@ class RobotController(Node):
 
         self.get_logger().error(f"Failed to move to pose after {max_attempts} attempts")
         return False
+    
+    def _move_ceiling_robot_to_pose(self, pose: Pose):
+        """
+        Move the floor robot to a target pose in Cartesian space.
+
+        This function plans and executes a motion to move the robot's end effector
+        to the specified pose. It includes retry logic to handle planning failures.
+
+        Args:
+            pose (Pose): Target pose for the robot's end effector
+
+        Returns:
+            bool: True if the motion succeeded, False otherwise
+        """
+        with self._planning_scene_monitor.read_write() as scene:
+            self._ceiling_robot.set_start_state(robot_state=scene.current_state)
+
+            pose_goal = PoseStamped()
+            pose_goal.header.frame_id = "world"
+            pose_goal.pose = pose
+            self._ceiling_robot.set_goal_state(
+                pose_stamped_msg=pose_goal, pose_link="ceiling_gripper"
+            )
+
+        # Limit retries to avoid infinite loops
+        attempts = 0
+        max_attempts = 3
+
+        while attempts < max_attempts:
+            success = self._plan_and_execute(
+                self._ariac_robots, self._ceiling_robot, self.get_logger(), "ceiling_robot"
+            )
+            if success:
+                return True
+            attempts += 1
+            self.get_logger().warn(
+                f"Plan and execute failed, attempt {attempts}/{max_attempts}"
+            )
+            # Short pause before retry
+            time.sleep(0.5)
+
+        self.get_logger().error(f"Failed to move to pose after {max_attempts} attempts")
+        return False
 
     def _floor_robot_wait_for_attach(self, timeout: float, orientation: Quaternion):
         """
@@ -2195,6 +2669,69 @@ class RobotController(Node):
         self.get_logger().info(f"Part attached after {retry_count} attempts")
         return True
 
+    def _ceiling_robot_wait_for_attach(self, timeout: float, orientation: Quaternion):
+        """
+        Wait for a part to attach to the gripper, making small downward movements if needed.
+
+        This function implements an adaptive approach to part attachment:
+        1. First waits briefly to see if the part attaches immediately
+        2. If not, makes small incremental downward movements
+        3. Continues until attachment is detected or timeout is reached
+
+        Args:
+            timeout (float): Maximum time in seconds to wait for attachment
+            orientation (Quaternion): Orientation to maintain during movements
+
+        Returns:
+            bool: True if part attached successfully
+
+        Raises:
+            Error: If timeout is reached or attachment fails after max retries
+        """
+        with self._planning_scene_monitor.read_write() as scene:
+            current_pose = scene.current_state.get_pose("ceiling_gripper")
+
+        start_time = time.time()
+        retry_count = 0
+
+        # First try waiting a short time for attachment without moving
+        time.sleep(0.1)
+        if self._ceiling_robot_gripper_state.attached:
+            self.get_logger().info("Part attached on first attempt")
+            return True
+
+        # while not self._floor_robot_gripper_state.attached and retry_count < max_retries:
+        while not self._ceiling_robot_gripper_state.attached:
+            # Move down in larger increments for faster operation
+            # z_offset = -0.002 * (retry_count + 1)  # Progressive larger movements
+            z_offset = -0.001
+
+            current_pose = build_pose(
+                current_pose.position.x,
+                current_pose.position.y,
+                current_pose.position.z + z_offset,
+                orientation,
+            )
+
+            waypoints = [current_pose]
+            self._move_ceiling_robot_cartesian(waypoints, 0.1, 0.1, False)
+
+            # Check if attached after movement
+            time.sleep(0.4)  # Short wait
+
+            retry_count += 1
+
+            if time.time() - start_time >= timeout:
+                self.get_logger().error("Unable to pick up part: timeout")
+                raise Error("Gripper attachment timeout")
+
+        if not self._ceiling_robot_gripper_state.attached:
+            self.get_logger().error("Unable to pick up part: max retries reached")
+            raise Error("Gripper attachment failed after max retries")
+
+        self.get_logger().info(f"Part attached after {retry_count} attempts")
+        return True
+
     def _create_floor_joint_position_state(self, joint_positions: list) -> dict:
         """
         Create a dictionary of joint positions for the floor robot.
@@ -2220,6 +2757,20 @@ class RobotController(Node):
             "floor_wrist_3_joint": joint_positions[6],
         }
 
+    def _create_ceiling_joint_position_state(self, joint_positions: list) -> dict:
+
+        return {
+            "gantry_x_axis_joint": joint_positions[0],
+            "gantry_y_axis_joint": joint_positions[1],
+            "gantry_rotation_joint": joint_positions[2],
+            "ceiling_elbow_joint": joint_positions[3],
+            "ceiling_shoulder_lift_joint": joint_positions[4],
+            "ceiling_shoulder_pan_joint": joint_positions[5],
+            "ceiling_wrist_1_joint": joint_positions[6],
+            "ceiling_wrist_2_joint": joint_positions[7],
+            "ceiling_wrist_3_joint": joint_positions[8],
+        }
+        
     def _make_mesh(self, name, pose, filename, frame_id) -> CollisionObject:
         """
         Create a collision object from a mesh file.
@@ -2586,6 +3137,76 @@ class RobotController(Node):
             )
             return False
 
+    def _move_ceiling_robot_to_joint_position(self, position_name: str):
+
+        self.get_logger().info(f"Moving to position: {position_name}")
+
+        try:
+            with self._planning_scene_monitor.read_write() as scene:
+                # Set the start state
+                self._ceiling_robot.set_start_state(robot_state=scene.current_state)
+
+                # Handle different position types
+                if position_name == "home":
+                    # For home, we use predefined values
+                    home_values = {
+                        "gantry_x_axis_joint": 2.0,
+                        "gantry_y_axis_joint": 0.0,
+                        "gantry_rotation_joint": -1.571,
+                        "ceiling_elbow_joint": 1.571,
+                        "ceiling_shoulder_lift_joint": -1.571,
+                        "ceiling_shoulder_pan_joint": 0.0,
+                        "ceiling_wrist_1_joint": 3.14,
+                        "ceiling_wrist_2_joint": -1.571,
+                        "ceiling_wrist_3_joint": 0.0,
+                    }
+
+                    # Create a new state for the goal
+                    goal_state = copy(scene.current_state)
+                    goal_state.joint_positions = home_values
+
+                elif position_name in self._ceiling_position_dict:
+                    # Create a new state for the goal
+                    goal_state = copy(scene.current_state)
+                    goal_state.joint_positions = self._ceiling_position_dict[
+                        position_name
+                    ]
+
+                else:
+                    self.get_logger().error(f"Position '{position_name}' not found")
+                    return False
+
+                # Create constraint
+                joint_constraint = construct_joint_constraint(
+                    robot_state=goal_state,
+                    joint_model_group=self._ariac_robots.get_robot_model().get_joint_model_group(
+                        "ceiling_robot"
+                    ),
+                )
+
+                # Set goal
+                self._ceiling_robot.set_goal_state(
+                    motion_plan_constraints=[joint_constraint]
+                )
+
+            # Plan and execute
+            success = self._plan_and_execute(
+                self._ariac_robots, self._ceiling_robot, self.get_logger(), "ceiling_robot"
+            )
+
+            if success:
+                self.get_logger().info(f"Successfully moved to {position_name}")
+                return True
+            else:
+                self.get_logger().error(f"Failed to move to {position_name}")
+                return False
+
+        except Exception as e:
+            self.get_logger().error(
+                f"Error moving to position '{position_name}': {str(e)}"
+            )
+            return False
+        
     def _attach_model_to_floor_gripper(self, part_to_pick: PartMsg, part_pose: Pose):
         """
         Attach a part model to the floor robot gripper in the planning scene.
@@ -2750,6 +3371,45 @@ class RobotController(Node):
             self.get_logger().error(f"Error detaching object from gripper: {str(e)}")
             return False
 
+    def _detach_object_from_ceiling_gripper(self, part_name):
+        """
+        Detach an object from the floor robot gripper in the planning scene.
+
+        This function removes the attachment between the robot's gripper and
+        the specified object in the planning scene, while optionally keeping
+        the object in the world model.
+
+        Args:
+            part_name (str): Name of the part to detach
+
+        Returns:
+            bool: True if detachment succeeded, False otherwise
+        """
+        self.get_logger().info(f"Detaching {part_name} from ceiling gripper")
+
+        try:
+            with self._planning_scene_monitor.read_write() as scene:
+                # Detach object from robot
+                scene.detachObject(part_name, "ceiling_gripper")
+                scene.current_state.update()
+
+                # Optionally remove the object from the world entirely
+                # Uncomment if you want the part to disappear after detachment
+                # collision_object = CollisionObject()
+                # collision_object.id = part_name
+                # collision_object.operation = CollisionObject.REMOVE
+                # scene.apply_collision_object(collision_object)
+                # scene.current_state.update()
+
+            self.get_logger().info(
+                f"Successfully detached {part_name} from ceiling gripper"
+            )
+            return True
+
+        except Exception as e:
+            self.get_logger().error(f"Error detaching object from gripper: {str(e)}")
+            return False
+        
     def _floor_robot_change_gripper(self, station: str, gripper_type: str):
         """
         Change the gripper on the floor robot.

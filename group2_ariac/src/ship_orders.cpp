@@ -22,7 +22,7 @@ void ShipOrders::order_callback(const ariac_msgs::msg::Order::SharedPtr msg)
         first_order_received_ = true;
 
         process_timer_ = this->create_wall_timer(
-            std::chrono::seconds(35),
+            std::chrono::seconds(1),
             std::bind(&ShipOrders::process_orders, this));
         
         // process_timer_ = this->create_wall_timer(

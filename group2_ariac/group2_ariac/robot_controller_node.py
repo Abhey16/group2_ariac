@@ -246,8 +246,8 @@ class RobotController(Node):
         self._ceiling_joint_positions_arrs = {
             "floor_kts1_js_": [2.0, 4.0, -1.57, 1.57, -1.57, 0.0, 3.14, 1.571, 0.0],
             "floor_kts2_js_": [2.0, -4.0, -1.57, 1.57, -1.57, 0.0, 3.14, 1.571, 0.0],
-            "left_bins": [3.25, -3.0, -1.57, 1.57, -1.57, 0.0, 3.14, 1.571, 0.0],
-            "right_bins": [3.25, 3.0, -1.57, 1.57, -1.57, 0.0, 3.14, 1.571, 0.0],
+            "left_bins": [3.25, 3.0, -1.57, 1.57, -1.57, 0.0, 3.14, -1.571, 0.0],
+            "right_bins": [3.25, -3.0, -1.57, 1.57, -1.57, 0.0, 3.14, 1.571, 0.0],
         }
         for i in range(1, 5):
             self._ceiling_joint_positions_arrs[f"agv{i}"] = [
@@ -363,7 +363,7 @@ class RobotController(Node):
         if request.type == "tray":
             FancyLog.info(self.get_logger(), "Executing tray pick and place operation")
             success = self._pick_place_tray_request(request)
-            self._operation_started = True           
+            self._operation_started = True      
         
         if request.type.lower() in ["battery", "pump", "regulator", "sensor"]:
             FancyLog.info(self.get_logger(), "Executing tray pick and place operation")
@@ -663,9 +663,9 @@ class RobotController(Node):
         # Move above the part - use closer approach to save time
         # We place the gripper 15 cm above the part.
         above_pose = build_pose(
-            -part_pose.position.x,
+            part_pose.position.x,
             part_pose.position.y,
-            -part_pose.position.z + 0.15,  # Reduced from 0.3 to 0.15
+            part_pose.position.z + 0.15,  # Reduced from 0.3 to 0.15
             gripper_orientation,
         )
         # Sets a target pose in Cartesian space
@@ -2428,6 +2428,10 @@ class RobotController(Node):
         if robot == "floor_robot":
             request.group_name = "floor_robot"
             request.link_name = "floor_gripper"
+
+        elif robot == "ceiling_robot":
+            request.group_name = "ceiling_robot"
+            request.link_name = "ceiling_gripper"
 
         # Always use higher velocity values for faster motion
         request.waypoints = waypoints

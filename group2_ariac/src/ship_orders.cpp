@@ -33,7 +33,7 @@ void ShipOrders::ship_orders_timer()
                     agv_num);
         
         // Lock the tray
-        lock_tray(agv_num, destination);
+        move_agv(agv_num, destination);
         ship_agv_ = false;
         agv_number_ = 0;
     }
@@ -67,7 +67,7 @@ void ShipOrders::lock_tray(int agv_num, int destination)
                 this->move_agv(agv_num, destination);
             } else // Failed to lock tray 
             {
-                RCLCPP_WARN(this->get_logger(), "Failed to lock tray on AGV%d", agv_num);
+                RCLCPP_WARN(this->get_logger(), "Failed to lock tray on AGV%d", agv_num);               
             }
         });
 }

@@ -1101,7 +1101,7 @@ class RobotController(Node):
                 build_pose(
                     agv_tray_pose.position.x + offset_x,
                     agv_tray_pose.position.y + offset_y,
-                    agv_tray_pose.position.z + 0.15,  # Final placement position
+                    agv_tray_pose.position.z + 0.13,  # Final placement position
                     quaternion_from_euler(0.0, pi, 0.0),
                 )
             )
@@ -1243,7 +1243,7 @@ class RobotController(Node):
                 build_pose(
                     agv_tray_pose.position.x + offset_x,
                     agv_tray_pose.position.y + offset_y,
-                    agv_tray_pose.position.z + 0.15,  # Final placement position
+                    agv_tray_pose.position.z + 0.13,  # Final placement position
                     quaternion_from_euler(0.0, pi, 0.0),
                 )
             )

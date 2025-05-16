@@ -246,8 +246,8 @@ class RobotController(Node):
         self._ceiling_joint_positions_arrs = {
             "floor_kts1_js_": [2.0, 4.0, -1.57, 1.57, -1.57, 0.0, 3.14, 1.571, 0.0],
             "floor_kts2_js_": [2.0, -4.0, -1.57, 1.57, -1.57, 0.0, 3.14, 1.571, 0.0],
-            "left_bins": [-3.25, 3.0, -1.57, 1.57, -1.57, 0.0, 3.14, 1.571, 0.0],
-            "right_bins": [-3.25, -3.0, -1.57, 1.57, -1.57, 0.0, 3.14, 1.571, 0.0],
+            "left_bins": [3.25, -3.0, -1.57, 1.57, -1.57, 0.0, 3.14, 1.571, 0.0],
+            "right_bins": [3.25, 3.0, -1.57, 1.57, -1.57, 0.0, 3.14, 1.571, 0.0],
         }
         for i in range(1, 5):
             self._ceiling_joint_positions_arrs[f"agv{i}"] = [
@@ -412,6 +412,8 @@ class RobotController(Node):
         # Ceiling robot parts
         if bin_side == "back_bins":
             # Pick the part
+            # request.pose.position.x = - request.pose.position.x
+            # request.pose.position.y = - request.pose.position.y
             if not self._ceiling_robot_pick_bin_part_request(request):
                 self.get_logger().error("Failed to pick part from bins")
                 return False 
@@ -622,9 +624,12 @@ class RobotController(Node):
         self.get_logger().error("######################################")
 
         # Initialize variables
+        # request.pose.position.x = - request.pose.position.x
+        # request.pose.position.y = - request.pose.position.y
+        
         part_pose = request.pose
         # not same as floor ?
-        bin_side = "right_bins" if part_pose.position.y < 0 else "left_bins"
+        bin_side = "left_bins" if part_pose.position.y < 0 else "right_bins"
 
         # # GRIPPER PREPARATION PHASE - Skip if already using the right gripper
         # if self._ceiling_robot_gripper_state.type != "part_gripper":
@@ -658,17 +663,25 @@ class RobotController(Node):
         # Move above the part - use closer approach to save time
         # We place the gripper 15 cm above the part.
         above_pose = build_pose(
-            part_pose.position.x,
+            -part_pose.position.x,
             part_pose.position.y,
-            part_pose.position.z + 0.15,  # Reduced from 0.3 to 0.15
+            -part_pose.position.z + 0.15,  # Reduced from 0.3 to 0.15
             gripper_orientation,
         )
         # Sets a target pose in Cartesian space
         # Lets the motion planner (MoveIt) determine the optimal path
         # The planner will typically find a path that's efficient in joint space, but the goal is specified in Cartesian space
         # Doesn't give explicit control over the path shape
+        self.get_logger().error("######################################")
+        self.get_logger().info("Moving Ceiling Robot above part")
+        self.get_logger().error("######################################")
+        
         self._move_ceiling_robot_to_pose(above_pose)
 
+        self.get_logger().error("######################################")
+        self.get_logger().info("Moving Ceiling Robot closer to part")
+        self.get_logger().error("######################################")
+        
         # PICKING PHASE - Getting closer to the part
         self.get_logger().info("Moving to grasp position")
         waypoints = [
@@ -3153,8 +3166,10 @@ class RobotController(Node):
             return False
 
     def _move_ceiling_robot_to_joint_position(self, position_name: str):
-
+        
+        self.get_logger().error("######################################")
         self.get_logger().info(f"Moving Ceiling Robot to position: {position_name}")
+        self.get_logger().error("######################################")     
 
         try:
             with self._planning_scene_monitor.read_write() as scene:
@@ -3165,7 +3180,7 @@ class RobotController(Node):
                 if position_name == "home":
                     # For home, we use predefined values
                     home_values = {
-                        "gantry_x_axis_joint": -4.999977,
+                        "gantry_x_axis_joint": 2.0,
                         "gantry_y_axis_joint": 0.0,
                         "gantry_rotation_joint": -1.571,
                         "ceiling_elbow_joint": 1.571,
